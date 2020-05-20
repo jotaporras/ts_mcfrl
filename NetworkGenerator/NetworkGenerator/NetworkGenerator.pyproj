@@ -20,6 +20,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="ExtendedNetwork.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="GraphNetwork.py">
       <SubType>Code</SubType>
     </Compile>
