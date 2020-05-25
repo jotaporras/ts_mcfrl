@@ -11,7 +11,7 @@ class Orders:
     """
     def __init__(self, totalCapacity, num_orders, network):
         assert totalCapacity >= num_orders
-
+        self.totalTime = 0
         self.totalCapacity = totalCapacity
         self.num_orders = num_orders
         self.network = network
@@ -25,10 +25,12 @@ class Orders:
         """
         left = self.totalCapacity
         orderLeft = self.num_orders
-
         while orderLeft > 0:
             randCapacity = rnd.randint(1, left - orderLeft + 1)
-            self.orders.append(Order(randCapacity, rnd.choice(self.network.dcs), rnd.choice(self.network.costumers), 0))
+            # Temporal delivery time generation, need to be change later
+            randDeliveryT = rnd.randint(1,3)
+            self.totalTime += randDeliveryT
+            self.orders.append(Order(randCapacity, rnd.choice(self.network.dcs), rnd.choice(self.network.costumers), randDeliveryT))
             left -= randCapacity
             orderLeft -= 1
 

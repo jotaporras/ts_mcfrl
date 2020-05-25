@@ -29,11 +29,11 @@ class Network:
         """
         #Generates the dcs nodes
         for i in range(0, self.num_dcs):
-            self.dcs.append(Node("dcs_" + str(i), 0))
+            self.dcs.append(Node("dcs_" + str(i), 0, 0))
 
         #Generates the costumer nodes
         for i in range(0, self.num_customers):
-            self.costumers.append(Node("c_" + str(i), 0))
+            self.costumers.append(Node("c_" + str(i), 0, 0))
         
         #Generates the arcs between dcs and dcs
         for node1 in self.dcs:
