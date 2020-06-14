@@ -23,6 +23,9 @@
     <Compile Include="ExtendedNetwork.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="GraphExtension.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="GraphNetwork.py">
       <SubType>Code</SubType>
     </Compile>

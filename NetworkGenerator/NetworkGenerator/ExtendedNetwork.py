@@ -37,7 +37,7 @@ class ExtendedNetwork:
                 arcs.append(node)
         
         #Creates all the costumer nodes
-        for t in range(0, self.orders.totalTime):
+        for t in range(1, self.orders.totalTime):
             for costumer in self.network.costumers:
                 node = Node(costumer.id + "_" + str(t), costumer.capacity, costumer.load)
                 arcs.append(node)
@@ -47,16 +47,26 @@ class ExtendedNetwork:
     def __GenerateArcs(self):
         arcs = []
         arcsToCostumers = []
+        #Generate the arcs to the same dcs across t
+        for t in range(0, self.orders.totalTime-1):
+            for node in self.network.dcs:
+                nodeFrom = Node(node.id+"_"+str(t), node.capacity, node.load)
+                nodeTo = Node(node.id+"_"+str(t+1), node.capacity, node.load)
+                arc = Arc(nodeFrom.id+"_"+nodeTo.id, nodeFrom, nodeTo, 1, 1)
+                arcs.append(arc)
+
+        #Generates the arcs beetwen differentes nodes
         for t in range(0, self.orders.totalTime):
             for arc in self.network.arcs:
-                nodeFrom = arc.nodeFrom.id+"_"+str(t)
-                nodeTo = arc.nodeTo.id+"_"+str(t+arc.cost)
-                newArc = Arc(nodeFrom+"_to_"+nodeTo, nodeFrom, nodeTo, arc.cost, arc.capacity)
+                nodeFrom = Node(arc.nodeFrom.id+"_"+str(t), arc.nodeFrom.capacity, arc.nodeFrom.load)
+                nodeTo = Node(arc.nodeTo.id+"_"+str(t+arc.cost), arc.nodeTo.capacity, arc.nodeTo.load)
+                newArc = Arc(nodeFrom.id+"_to_"+nodeTo.id, nodeFrom, nodeTo, arc.cost, arc.capacity)
                 if arc.cost + t < self.orders.totalTime and arc.id[0] != 'c':
                     arcs.append(newArc)
                 elif arc.id[0] == 'c':
                     arcsToCostumers.append(newArc)
-
+        
+        #Filters the arcs going to costumers based in the orders delivery time
         count = 0
         for order in self.orders.orders:
             for arc in arcsToCostumers:
@@ -64,4 +74,5 @@ class ExtendedNetwork:
                 if time == count + order.deliveryTime and time < self.orders.totalTime:
                     arcs.append(arc)
                     arcsToCostumers.remove(arc)
+            count += order.deliveryTime
         return arcs

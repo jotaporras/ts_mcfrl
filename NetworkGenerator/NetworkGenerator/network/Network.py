@@ -39,7 +39,7 @@ class Network:
         for node1 in self.dcs:
             for node2 in self.dcs:
                 if(node1.id != node2.id):
-                    self.arcs.append(Arc(node1.id + "_to_" + node2.id, node1, node2, 0, 0))
+                    self.arcs.append(Arc(node1.id + "_to_" + node2.id, node1, node2, 1, 0))
 
         #Generate a random arc between dcs and costumers
         for costumer in self.costumers:
@@ -47,7 +47,7 @@ class Network:
             tempDcs = []
             while counter < self.dcs_per_customer:
                 nodeDc = random.choice([dc for dc in self.dcs if dc not in tempDcs])
-                self.arcs.append(Arc(nodeDc.id + "_to_" + costumer.id, nodeDc, costumer, 0, 0))
+                self.arcs.append(Arc(nodeDc.id + "_to_" + costumer.id, nodeDc, costumer, 1, 0))
                 tempDcs.append(nodeDc)
                 counter += 1
 
