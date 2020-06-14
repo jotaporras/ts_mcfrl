@@ -28,9 +28,9 @@ class Orders:
         while orderLeft > 0:
             randCapacity = rnd.randint(1, left - orderLeft + 1)
             # Temporal delivery time generation, need to be change later
-            randDeliveryT = 4#rnd.randint(1,3)
-            self.totalTime += randDeliveryT
-            self.orders.append(Order(randCapacity, rnd.choice(self.network.dcs), rnd.choice(self.network.costumers), randDeliveryT))
+            orderTime = 3
+            self.totalTime += orderTime            
+            self.orders.append(Order(randCapacity, rnd.choice(self.network.dcs), rnd.choice(self.network.costumers), orderTime))
             left -= randCapacity
             orderLeft -= 1
 

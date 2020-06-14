@@ -24,25 +24,24 @@ class ExtendedNetwork:
             nodesWithCap[order.initialPoint.id+"_"+str(count)] = order.capacity
             count += order.deliveryTime + 1
 
-        print(nodesWithCap)
-
         #Creates all the dcs nodes
-        arcs = []
+        nodes = []
         for t in range(0, self.orders.totalTime):
             for dcs in self.network.dcs:
                 node = Node(dcs.id + "_" + str(t), dcs.capacity, dcs.load)
                 #Adds the load according to the initial point of the order
                 if node.id in nodesWithCap:
                     node.load = nodesWithCap[node.id]
-                arcs.append(node)
+                nodes.append(node)
         
         #Creates all the costumer nodes
-        for t in range(1, self.orders.totalTime):
+        count = 0
+        for order in self.orders.orders:
             for costumer in self.network.costumers:
-                node = Node(costumer.id + "_" + str(t), costumer.capacity, costumer.load)
-                arcs.append(node)
+                nodes.append(Node(costumer.id+"_"+str(count+order.deliveryTime), costumer.capacity, costumer.load))
+            count += order.deliveryTime
 
-        return arcs
+        return nodes
 
     def __GenerateArcs(self):
         arcs = []
@@ -54,25 +53,26 @@ class ExtendedNetwork:
                 nodeTo = Node(node.id+"_"+str(t+1), node.capacity, node.load)
                 arc = Arc(nodeFrom.id+"_"+nodeTo.id, nodeFrom, nodeTo, 1, 1)
                 arcs.append(arc)
-
+        
         #Generates the arcs beetwen differentes nodes
         for t in range(0, self.orders.totalTime):
             for arc in self.network.arcs:
                 nodeFrom = Node(arc.nodeFrom.id+"_"+str(t), arc.nodeFrom.capacity, arc.nodeFrom.load)
                 nodeTo = Node(arc.nodeTo.id+"_"+str(t+arc.cost), arc.nodeTo.capacity, arc.nodeTo.load)
                 newArc = Arc(nodeFrom.id+"_to_"+nodeTo.id, nodeFrom, nodeTo, arc.cost, arc.capacity)
-                if arc.cost + t < self.orders.totalTime and arc.id[0] != 'c':
+                if arc.cost + t < self.orders.totalTime and arc.nodeTo.id[0] != 'c':
                     arcs.append(newArc)
-                elif arc.id[0] == 'c':
+                elif arc.nodeTo.id[0] == 'c':
                     arcsToCostumers.append(newArc)
         
         #Filters the arcs going to costumers based in the orders delivery time
         count = 0
         for order in self.orders.orders:
             for arc in arcsToCostumers:
-                time = int(arc.nodeTo[-1])
-                if time == count + order.deliveryTime and time < self.orders.totalTime:
+                time = int(arc.nodeTo.id[-1])
+                if time == count + order.deliveryTime:
                     arcs.append(arc)
-                    arcsToCostumers.remove(arc)
+                    #arcsToCostumers.remove(arc)
             count += order.deliveryTime
+
         return arcs
