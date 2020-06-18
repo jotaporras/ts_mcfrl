@@ -1,6 +1,6 @@
 import random
-from Node import Node
-from Arc import Arc
+from network.Node import Node
+from network.Arc import Arc
 
 print("Network imported")
 class Network:
