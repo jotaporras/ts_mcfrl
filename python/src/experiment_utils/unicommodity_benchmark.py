@@ -1,6 +1,8 @@
 from ortools.graph import pywrapgraph
 
 from experiment_utils.mcf_solver import mcf_solve
+from experiment_utils.mcf_solver import mcf_solve
+
 from experiment_utils.problem_generator import generate_basic
 
 
