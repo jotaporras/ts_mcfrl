@@ -2,6 +2,8 @@ from abc import ABC
 from typing import List, Any
 
 import gym
+
+
 import typing
 from gym import spaces
 import random
@@ -55,12 +57,12 @@ class ShippingFacilityEnvironment(gym.Env):
         self.current_state = {}
         self.current_t = 0
         self.action_space = spaces.Discrete(
-            self.environment_parameters.network.dcs
+            self.environment_parameters.network.num_dcs
         )  # The action space is choosing a DC for the current order.
         self.inventory = np.zeros(
             (
                 self.environment_parameters.network.num_dcs,
-                self.environment_parameters.network.num_commodities, # TODO this field is missing.
+                self.environment_parameters.network.num_commodities # TODO this field is missing.
             )
         )  # Matrix of inventory for each dc-k.
 
@@ -103,6 +105,9 @@ class ShippingFacilityEnvironment(gym.Env):
 
     def render(self, mode="human", close=False):
         # Render the environment to the screen
+        print("fixed_orders",self.fixed_orders)
+        print("open_orders",self.open_orders)
+        print("inventory",self.inventory)
         print("rendering")
 
     def _next_observation(self):
@@ -133,15 +138,17 @@ class ShippingFacilityEnvironment(gym.Env):
 
 # Naive implementations of inventory and order generators to illustrate.
 class NaiveOrderGenerator(OrderGenerator):
+    default_delivery_time = 1
     def __init__(self, num_dcs, num_customers, orders_per_day):
         self.num_dcs = num_dcs
         self.num_customers = num_customers
         self.orders_per_day = orders_per_day
 
-    def generate_orders(self):  # TODO: needs a list of commodities.
+    def generate_orders(self):  # TODO: needs a list of commodities, also needs the
         customer = "c_" + str(np.random.choice(np.arange(self.num_customers)))
         dc = "dc_" + str(np.random.choice(np.arange(self.num_dcs)))
-        return [Order(10, dc, customer) for it in range(self.orders_per_day)]
+        demand = random.randint(0, 50)
+        return [Order(demand, dc, customer, self.default_delivery_time) for it in range(self.orders_per_day)]
 
 
 class NaiveInventoryGenerator(InventoryGenerator):
@@ -157,16 +164,47 @@ class NaiveInventoryGenerator(InventoryGenerator):
             dc_inv[0, 0] = dc_inv[0, 0] + 1
         return dc_inv
 
-if __name__ == "__main__":
-    environment_parameters = EnvironmentParameters(Network(2,2,2),5,NaiveOrderGenerator(),NaiveInventoryGenerator())
-    env = ShippingFacilityEnvironment(environment_parameters)
-    first_obs = env.reset()
-    for i in range(15):
-        # the agent observes the first state and chooses an action
-        #### todo implement agent.
+class ExampleShippingFacilityEnvironment(ShippingFacilityEnvironment):
+    def __init__(self):
+        num_dcs = 5
+        num_customers = 5
+        num_episodes = 5
+        orders_per_day = 2
+        dcs_per_customer = 2
+        environment_parameters = EnvironmentParameters(Network(num_dcs, num_customers, dcs_per_customer), num_episodes,
+                                                       NaiveOrderGenerator(num_dcs, num_customers, orders_per_day),
+                                                       NaiveInventoryGenerator())
+        super().__init__(environment_parameters)
 
+class RandomAgent(object):
+    """The world's simplest agent!"""
+    def __init__(self, action_space):
+        self.action_space = action_space
+
+    def act(self, observation, reward, done):
+        return self.action_space.sample()
+
+if __name__ == "__main__":
+    num_dcs=5
+    num_customers=5
+    num_episodes = 5
+    orders_per_day=2
+    dcs_per_customer=2
+    environment_parameters = EnvironmentParameters(Network(num_dcs,num_customers,dcs_per_customer), num_episodes, NaiveOrderGenerator(num_dcs, num_customers, orders_per_day), NaiveInventoryGenerator())
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = RandomAgent(env.action_space)
+
+    obs = env.reset()
+    reward = 0
+    done=False
+    for i in range(15):
+        action = agent.act(obs, reward, done)
+        print(f"Agent is taking action: {action}")
+        # the agent observes the first state and chooses an action
         # environment steps with the agent's action and returns new state and reward
-        obs, reward, done, info = env.step(random.randint(0, 3))
+        obs, reward, done, info = env.step(action)
+        print(f"Got reward {reward} done {done}")
 
         # Render the current state of the environment
         env.render()

@@ -11,12 +11,13 @@ class Network:
     :param int num_customers: num of nodes that are costumers
     :param int dcs_per_customer: dcs per costumer
     """
-    def __init__(self, num_dcs, num_customers, dcs_per_customer):
+    def __init__(self, num_dcs, num_customers, dcs_per_customer, num_commodities=1):
         assert num_dcs >= dcs_per_customer
 
         self.num_dcs = num_dcs
         self.num_customers = num_customers
         self.dcs_per_customer = dcs_per_customer
+        self.num_commodities = num_commodities
         self.dcs = []
         self.costumers = []
         self.arcs = []
