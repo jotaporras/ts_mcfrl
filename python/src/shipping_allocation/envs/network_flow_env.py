@@ -71,7 +71,8 @@ class ShippingFacilityEnvironment(gym.Env):
     # Taking a step forward after the agent selects an action for the current state.
     def step(self, action):
         # Choose the shipping point for the selected order and fix the order.
-        self.open_orders[0].initialPoint = action
+
+        self.open_orders[0].initialPoint = action#self.environment_parameters.network.dcs[action] #TODO talk to barnum about this parameter type.
         self.fixed_orders = self.fixed_orders + [self.open_orders[0]]
 
         # Remove it from open orders
@@ -105,10 +106,14 @@ class ShippingFacilityEnvironment(gym.Env):
 
     def render(self, mode="human", close=False):
         # Render the environment to the screen
-        print("fixed_orders",self.fixed_orders)
-        print("open_orders",self.open_orders)
-        print("inventory",self.inventory)
-        print("rendering")
+        if mode == "human":
+            print(f"fixed_orders ({len(self.fixed_orders)})",self.fixed_orders)
+            print(f"Demand fixed orders: {sum(map(lambda o:o.capacity,self.fixed_orders))}") #TODO Do for all commodities
+            print(f"open_orders ({len(self.open_orders)})",self.open_orders)
+            print(f"Demand open orders: {sum(map(lambda o:o.capacity,self.open_orders))}") #TODO Do for all commodities
+            print("inventory\n",self.inventory)
+            print("rendering")
+
 
     def _next_observation(self):
         if len(self.open_orders) == 0:  # Create new orders if necessary
@@ -164,18 +169,6 @@ class NaiveInventoryGenerator(InventoryGenerator):
             dc_inv[0, 0] = dc_inv[0, 0] + 1
         return dc_inv
 
-class ExampleShippingFacilityEnvironment(ShippingFacilityEnvironment):
-    def __init__(self):
-        num_dcs = 5
-        num_customers = 5
-        num_episodes = 5
-        orders_per_day = 2
-        dcs_per_customer = 2
-        environment_parameters = EnvironmentParameters(Network(num_dcs, num_customers, dcs_per_customer), num_episodes,
-                                                       NaiveOrderGenerator(num_dcs, num_customers, orders_per_day),
-                                                       NaiveInventoryGenerator())
-        super().__init__(environment_parameters)
-
 class RandomAgent(object):
     """The world's simplest agent!"""
     def __init__(self, action_space):
@@ -187,10 +180,13 @@ class RandomAgent(object):
 if __name__ == "__main__":
     num_dcs=5
     num_customers=5
-    num_episodes = 5
+    num_episodes = 1
     orders_per_day=2
     dcs_per_customer=2
-    environment_parameters = EnvironmentParameters(Network(num_dcs,num_customers,dcs_per_customer), num_episodes, NaiveOrderGenerator(num_dcs, num_customers, orders_per_day), NaiveInventoryGenerator())
+    physical_network = Network(num_dcs, num_customers, dcs_per_customer)
+    order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
+    generator = NaiveInventoryGenerator()
+    environment_parameters = EnvironmentParameters(physical_network, num_episodes, order_generator, generator)
 
     env = ShippingFacilityEnvironment(environment_parameters)
     agent = RandomAgent(env.action_space)
@@ -198,7 +194,10 @@ if __name__ == "__main__":
     obs = env.reset()
     reward = 0
     done=False
-    for i in range(15):
+    print("=========== starting episode loop ===========")
+    print("Initial environment: ")
+    env.render()
+    while not done:
         action = agent.act(obs, reward, done)
         print(f"Agent is taking action: {action}")
         # the agent observes the first state and chooses an action
@@ -208,3 +207,6 @@ if __name__ == "__main__":
 
         # Render the current state of the environment
         env.render()
+
+        if done:
+            print("===========Environment says we are DONE ===========")

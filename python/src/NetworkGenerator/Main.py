@@ -1,13 +1,12 @@
 from network.Network import Network
 from orders.Orders import Orders
-from ExtendedNetwork import ExtendedNetwork
-from GraphExtension import GraphExtension
+from NetworkGenerator.ExtendedNetwork import ExtendedNetwork
+from NetworkGenerator.GraphExtension import GraphExtension
 
 def main():
     #for node in nodes:
     #    print(node.id)
     
-
     net = Network(3,2,2)
     GraphExtension.GraphNetwork(net.dcs+net.costumers, net.arcs)
     

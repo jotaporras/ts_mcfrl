@@ -1,5 +1,5 @@
 import random as rnd
-from Order import Order
+from orders.Order import Order
 
 class Orders:
     """
