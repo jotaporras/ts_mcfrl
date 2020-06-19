@@ -9,6 +9,7 @@ from gym import spaces
 import random
 import numpy as np
 
+from experiment_utils import network_flow_k_optimizer
 from network.Network import Network
 from orders.Order import Order
 
@@ -138,7 +139,7 @@ class ShippingFacilityEnvironment(gym.Env):
         return self.inventory + new_inventory
 
     def _run_simulation(self) -> float:
-        return 1 #todo implement with the network flow optimizer.
+        return network_flow_k_optimizer.optimize(self.current_state)
 
 
 # Naive implementations of inventory and order generators to illustrate.
@@ -180,7 +181,7 @@ class RandomAgent(object):
 if __name__ == "__main__":
     num_dcs=5
     num_customers=5
-    num_episodes = 1
+    num_episodes = 10
     orders_per_day=2
     dcs_per_customer=2
     physical_network = Network(num_dcs, num_customers, dcs_per_customer)
