@@ -190,17 +190,17 @@ class NaiveInventoryGenerator(InventoryGenerator):
         )  # TODO rename and do for many commmodities.
         even = total_inventory // network.num_dcs
         dc_inv = np.array([even] * network.num_dcs).reshape(
-            -1, 1
+            network.num_dcs,-1
         )  # To keep the (dc,product) shape. #todo validate with multiple commodities
         print("Demand", total_inventory)
         print("Pre level dc_inv", dc_inv)
         print("Total new inv",np.sum(dc_inv))
-        imbalance = total_inventory - np.sum(dc_inv)
+        imbalance = total_inventory - np.sum(dc_inv,axis=0)
         #if total_inventory // network.num_dcs != total_inventory / network.num_dcs:
-        dc_inv[0, 0] = dc_inv[0, 0] + imbalance
+        dc_inv[0, :] = dc_inv[0, :] + imbalance
         print("Rebalanced",dc_inv)
         print("Rebalanced sum",np.sum(dc_inv))
-        if np.sum(dc_inv) != total_inventory:
+        if (np.sum(dc_inv,axis=0) != total_inventory).any():
             raise Exception("np.sum(dc_inv) != total_inventory")
         return dc_inv
 
@@ -218,13 +218,13 @@ class RandomAgent(object):
 if __name__ == "__main__":
     num_dcs = 2
     num_customers = 1
-    num_commodities = 1
+    num_commodities = 3
     orders_per_day = 1
     dcs_per_customer = 1
     demand_mean = 100
     demand_var = 20
 
-    num_episodes = 10
+    num_episodes = 1
 
     physical_network = PhysicalNetwork(num_dcs, num_customers, dcs_per_customer,demand_mean,demand_var,num_commodities)
     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
@@ -278,4 +278,5 @@ if __name__ == "__main__":
 # mcf.AddArcWithCapacityAndUnitCost(5, 2, 9000000, 10)
 # mcf.AddArcWithCapacityAndUnitCost(5, 7, 9000000, 10)
 # Running optimization
-#TODO : crear sliding window del TEN para que vaya avanzando.
+#TODO : crear sliding window del TEN para que vaya avanzando y moviendo las conexiones.
+#TODO: ALSO TEST FOR MULTIPLE COMMODITIES ONE EPISODE

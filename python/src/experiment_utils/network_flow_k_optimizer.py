@@ -42,17 +42,18 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,inf_capac
             print(f"mcf.AddArcWithCapacityAndUnitCost({a.tail.node_id}, {a.head.node_id}, {inf_capacity}, {a.cost})")
             mcf.AddArcWithCapacityAndUnitCost(a.tail.node_id, a.head.node_id, inf_capacity, a.cost)
 
-    for n in extended_network.network.dcs:
-        if n.commodity == k: #TODO see if replace with K independent lists of arcs.
-            mcf.SetNodeSupply(n.arc_id, n.demand)  # todo refactor
-
-    for n in extended_network.network.customers:
-        if n.commodity == k:
-            mcf.SetNodeSupply(n.arc_id, n.demand) #todo refactor and check if demands are properly set
-
-    for a in extended_network.network.arcs: #todo is this right?
-        if a.commodity == k:
-            mcf.AddArcWithCapacityAndUnitCost(a.tail,a.head,inf_capacity,a.cost) #todo validate.
+    #TODO ai think delete.
+    # for n in extended_network.network.dcs:
+    #     if n.commodity == k: #TODO see if replace with K independent lists of arcs.
+    #         mcf.SetNodeSupply(n.arc_id, n.demand)  # todo refactor
+    #
+    # for n in extended_network.network.customers:
+    #     if n.commodity == k:
+    #         mcf.SetNodeSupply(n.arc_id, n.demand) #todo refactor and check if demands are properly set
+    #
+    # for a in extended_network.network.arcs: #todo is this right?
+    #     if a.commodity == k:
+    #         mcf.AddArcWithCapacityAndUnitCost(a.tail,a.head,inf_capacity,a.cost) #todo validate.
 
     print("Running optimization")
     start = time.process_time_ns()
