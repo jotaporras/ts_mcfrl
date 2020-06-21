@@ -18,7 +18,7 @@ def generate_basic(num_dcs, num_customers, num_t, dcs_per_customer):  # todo tes
     base_dc_assignment = np.zeros(num_dcs)
     base_dc_assignment[0:dcs_per_customer] = 1
 
-    dcs_per_customer = np.array([np.random.permutation(base_dc_assignment) for c in range(num_customers)])
+    dcs_per_customer_array = np.array([np.random.permutation(base_dc_assignment) for c in range(num_customers)])
 
     # generate dc nodes
     dc_nodes = [{"id": dc * num_t + t, "name": f"dc_{dc}:{t}", 't': t, 'place': dc, 'type': "dc"} for dc in
@@ -44,7 +44,7 @@ def generate_basic(num_dcs, num_customers, num_t, dcs_per_customer):  # todo tes
     # generate dc to customer arcs
     dc_customer_arcs = [
         {'name': f"dc_{dc}:{num_t - 1}->c_{c}:{num_t - 1}", 'from': dc * num_t + num_t - 1, 'to': len(dc_nodes) + c} for
-        dc in range(num_dcs) for c in range(num_customers) if dcs_per_customer[c, dc] == 1]
+        dc in range(num_dcs) for c in range(num_customers) if dcs_per_customer_array[c, dc] == 1]
 
     # print("dc_time_arcs",*dc_time_arcs, sep="\n")
     # print("dc_transport_arcs",*dc_transport_arcs, sep="\n")
@@ -58,7 +58,7 @@ def generate_basic(num_dcs, num_customers, num_t, dcs_per_customer):  # todo tes
 def generate_basic_multicommodity(num_dcs, num_customers, num_t, dcs_per_customer, num_k, mean_k_demand):
     # todo test. also, how to add reasonable capacities?  fixed capacities per dc-pair, constant over time. move up to 10% inventory.
     # todo also, how to have both the static and dynamic representation of the demand
-    # todo add random dates for orders.
+    # todo add random dates for locations.
     nodes, arcs = generate_basic(num_dcs, num_customers, num_t, dcs_per_customer)
     demand = np.random.poisson(mean_k_demand, [num_k, num_customers])
     product_choices = np.random.binomial(1, 0.6, [num_k, num_customers])

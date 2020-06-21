@@ -5,10 +5,10 @@ class GraphExtension:
     def GraphNetwork(nodes, arcs):
         G=nx.Graph()
         for node in nodes:
-            G.add_node(node.id)
+            G.add_node(node.node_id)
         
         for arc in arcs:
-            G.add_edge(arc.nodeFrom.id, arc.nodeTo.id)
+            G.add_edge(arc.tail.node_id, arc.head.node_id)
         
         #G.add_nodes_from(["b","c"])
         #G.add_edge(1,2)

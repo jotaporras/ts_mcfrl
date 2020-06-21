@@ -1,16 +1,31 @@
+from network.Node import Node
+
+
 class Arc:
     """
     Definition of an arc
 
     :param string id: arc identifier, must be unique
-    :param Node nodeFrom: node from where the arc starts
-    :param Node nodeTo: node from where the arc ends
+    :param Node tail: node from where the arc starts
+    :param Node head: node from where the arc ends
     :param int cost: cost of transit this arc
     :param int capacity: the load the arc can carry
     """
-    def __init__(self, id, nodeFrom, nodeTo, cost, capacity):
-        self.id = id
-        self.nodeFrom = nodeFrom
-        self.nodeTo = nodeTo
+    arc_id: int
+    tail: Node
+    head: Node
+    cost: int
+    capacity: int
+
+    def __init__(self, arc_id: int, tail, head, cost, capacity, commodity, name=""):
+        self.arc_id = arc_id
+        self.tail = tail
+        self.head = head
         self.cost = cost
         self.capacity = capacity
+        self.commodity = commodity
+        self.name = name
+
+    def __repr__(self):
+        # return f"Arc(arc_id={self.arc_id}, tail={self.tail}, head={self.head}, cost={self.cost}, capacity={self.capacity}, commodity={self.commodity}, name={self.name})"
+        return self.name #short repr.

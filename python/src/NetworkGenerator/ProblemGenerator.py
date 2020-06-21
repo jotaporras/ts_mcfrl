@@ -57,7 +57,7 @@ def generate_basic(num_dcs, num_customers, num_t, dcs_per_customer):  # todo tes
 def generate_basic_multicommodity(num_dcs, num_customers, num_t, dcs_per_customer, num_k, mean_k_demand):
     # todo test. also, how to add reasonable capacities?  fixed capacities per dc-pair, constant over time. move up to 10% inventory.
     # todo also, how to have both the static and dynamic representation of the demand
-    # todo add random dates for orders.
+    # todo add random dates for locations.
     nodes, arcs = generate_basic(num_dcs, num_customers, num_t, dcs_per_customer)
     demand = np.random.poisson(mean_k_demand, [num_k, num_customers])
     product_choices = np.random.binomial(1, 0.6, [num_k, num_customers])
