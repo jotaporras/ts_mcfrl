@@ -139,5 +139,8 @@ class PhysicalNetwork:
             initial_point_physical_node = self.dcs[chosen_initial_point]
             time = current_t+self.planning_horizon-1 #Orders appear on the edge of PH.
             orders.append(Order(order_demand_vector, initial_point_physical_node, customer_node, time, name=f"oc_{customer_node.node_id}:{time}"))
-        print("Orders",orders)
+        #print("Orders",orders)
         return orders
+
+    def __repr__(self):
+        return str(self.__dict__)

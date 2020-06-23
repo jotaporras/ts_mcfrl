@@ -13,6 +13,8 @@ from experiment_utils import network_flow_k_optimizer
 from network.PhysicalNetwork import PhysicalNetwork
 from locations.Order import Order
 
+DEBUG=False
+
 # Abstract classes. BARNUM, you have to implement these
 class OrderGenerator(ABC):
     # Generates a set of locations for the next timestep.
@@ -52,6 +54,7 @@ class ShippingFacilityEnvironment(gym.Env):
 
     def __init__(self, environment_parameters: EnvironmentParameters):
         super(ShippingFacilityEnvironment, self).__init__()
+
         self.environment_parameters = environment_parameters
         self.fixed_orders = []  # Orders already fixed for delivery
         self.open_orders = []  # Orders not yet decided upon.
@@ -63,25 +66,39 @@ class ShippingFacilityEnvironment(gym.Env):
         self.inventory = np.zeros(
             (
                 self.environment_parameters.network.num_dcs,
-                self.environment_parameters.network.num_commodities,  # TODO this field is missing.
+                self.environment_parameters.network.num_commodities,
             )
         )  # Matrix of inventory for each dc-k.
+        self.transports_acc = np.zeros(self.inventory.shape)
 
         print("Calling init on the ShippingFacilityEnvironment")
 
     # Taking a step forward after the agent selects an action for the current state.
     def step(self, action):
         # Choose the shipping point for the selected order and fix the order.
+        if DEBUG:
+            print("\n=============================================")
+            print("===============> STARTING ENVIRONMENT STEP",self.current_t)
+            print("=============================================")
+            print("Received action",action)
+            print("Pre env.step render:")
+            #print("Current state: ",self.current_state)
+            self.render()
 
-        self.open_orders[
-            0
-        ].initialPoint = action  # self.environment_parameters.network.dcs[action] #TODO talk to barnum about this parameter type.
+        #"Setting shipping point",action," for order ",self.open_orders[0])
+        new_shipping_point = self.environment_parameters.network.dcs[action]
+        self.open_orders[0].shipping_point = new_shipping_point
+        #print("Order after seting action: ",self.open_orders[0])
         self.fixed_orders = self.fixed_orders + [self.open_orders[0]]
+        self.current_state['fixed'] = self.fixed_orders #TODO cleanup state update
 
         # Remove it from open locations
         self.open_orders = self.open_orders[1:]
+        self.current_state['open'] = self.open_orders #TODO cleanup state update
 
-        cost = self._run_simulation()
+        cost,transports = self._run_simulation()
+
+        self.transports_acc = transports
 
         reward = cost * -1
 
@@ -99,7 +116,9 @@ class ShippingFacilityEnvironment(gym.Env):
 
     def reset(self):
         # Reset the state of the environment to an initial state
-        print("Reseting environment")
+        #print("Physical network for new env: ")
+        #print(self.environment_parameters.network)
+        #print("Reseting environment")
         self.fixed_orders = []  # Orders already fixed for delivery
         self.open_orders = []
         self.current_t = 0
@@ -109,7 +128,9 @@ class ShippingFacilityEnvironment(gym.Env):
 
     def render(self, mode="human", close=False):
         # Render the environment to the screen
-        if mode == "human":
+        if mode == "human" and DEBUG:
+            print("\n\n======== RENDERING ======")
+            print("Current t",self.current_t)
             print(f"fixed_orders ({len(self.fixed_orders)})", self.fixed_orders)
             print(
                 f"Demand fixed orders: {sum(map(lambda o:o.demand, self.fixed_orders))}"
@@ -119,14 +140,55 @@ class ShippingFacilityEnvironment(gym.Env):
                 f"Demand open orders: {sum(map(lambda o:o.demand, self.open_orders))}"
             )  # TODO Do for all commodities
             print("inventory\n", self.inventory)
-            print("rendering")
+            print("Current State:")
+            self._render_state()
+            print("======== END RENDERING ======\n\n")
+
+    def _render_state(self):
+        if DEBUG:
+            print("Rendering mutable part of the state")
+            print("fixed: ",self.current_state['fixed'])
+            print("open: ",self.current_state['open'])
+            print("inventory: ", self.current_state['inventory'])
+            print("current_t: ", self.current_state['current_t'])
 
     def _next_observation(self):
         if len(self.open_orders) == 0:  # Create new locations if necessary
+            #if self.current_t != 0: #Dont update the T if it's the start of the run/ #TODO VALIDATE THIS MIGHT BE AN ISSUE!!!!!!!
+
+
+            consumed_inventory = self._calculate_consumed_inventory()
+            self.current_t += 1
             new_orders = self._generate_orders()
             self.open_orders = self.open_orders + new_orders
-            self.current_t += 1
-        self.inventory = self._generate_updated_inventory()
+
+            #print("Updating inventory with orders")
+            #print("Before update: ")
+            #print(self.inventory)
+
+            self.inventory = self._generate_updated_inventory(consumed_inventory)
+
+            #print("inventory after orders before transports")
+            #print(self.inventory)
+
+            if (self.transports_acc > 0).any():
+                # print("Applying transports!!! Transports:***")
+                # print(self.transports_acc)
+                self.inventory += self.transports_acc
+                # print("New inventory after transports")
+                # print(self.inventory)
+                # print("setting all to zero again")
+                self.transports_acc[:, :] = 0
+                # print(self.transports_acc)
+
+
+
+            if (self.inventory<0).any():
+                print("THIS SHOULDNT HAPPEN!!!!! NEGATIVE INVENTORY")
+                print(self.inventory)
+                raise Exception("THIS SHOULDNT HAPPEN!!!!! NEGATIVE INVENTORY")
+        # else:
+        #     self.inventory = self._generate_updated_inventory(0)
         return {
             "physical_network": self.environment_parameters.network,
             "inventory": self.inventory,
@@ -136,17 +198,27 @@ class ShippingFacilityEnvironment(gym.Env):
         }
 
     def _generate_orders(self) -> typing.List[Order]:
-        print(f"Calling order generator for t={self.current_t}")
+        #print(f"Calling order generator for t={self.current_t}")
         return self.environment_parameters.order_generator.generate_orders(self.current_t)
 
-    def _generate_updated_inventory(self):
+    def _generate_updated_inventory(self,consumed_inventory):
         new_inventory = self.environment_parameters.inventory_generator.generate_new_inventory(
             self.environment_parameters.network, self.open_orders
         )  # must keep shape
-        return self.inventory + new_inventory
+        return self.inventory + new_inventory - consumed_inventory
+
+    def _calculate_consumed_inventory(self):
+        #print("Calculating consumed inventory")
+        consumed = np.zeros(self.inventory.shape)
+        for order in self.fixed_orders:
+            if order.due_timestep == self.current_t:
+                #print("Order",order.name,"is getting consumed on timelapse ",self.current_t," from ",order.shipping_point)
+                consumed[order.shipping_point.node_id,:] += order.demand
+        # print("Consumed inventory: ")
+        # print(consumed)
+        return consumed
 
     def _run_simulation(self) -> float:
-        print("Running sim")
         return network_flow_k_optimizer.optimize(self.current_state) #TODO aqui quede implement the K optimizer given the order gen.
 
 
@@ -178,13 +250,14 @@ class ActualOrderGenerator(OrderGenerator):
         self.orders_per_day = orders_per_day
 
     def generate_orders(self,current_t) -> List[Order]:
-        return self.network.generate_orders(orders_per_day,current_t)
+        return self.network.generate_orders(self.orders_per_day,current_t)
 
 
 class NaiveInventoryGenerator(InventoryGenerator):
     def generate_new_inventory(
         self, network: PhysicalNetwork, open_orders: List[Order]
     ):
+        #print("==> inventory generator")
         total_inventory = sum(
             map(lambda o: o.demand, open_orders)
         )  # TODO rename and do for many commmodities.
@@ -192,14 +265,15 @@ class NaiveInventoryGenerator(InventoryGenerator):
         dc_inv = np.array([even] * network.num_dcs).reshape(
             network.num_dcs,-1
         )  # To keep the (dc,product) shape. #todo validate with multiple commodities
-        print("Demand", total_inventory)
-        print("Pre level dc_inv", dc_inv)
-        print("Total new inv",np.sum(dc_inv))
+        # print("Demand", total_inventory)
+        # print("Pre level dc_inv")
+        # print(dc_inv)
+        # print("Total new inv",np.sum(dc_inv))
         imbalance = total_inventory - np.sum(dc_inv,axis=0)
         #if total_inventory // network.num_dcs != total_inventory / network.num_dcs:
         dc_inv[0, :] = dc_inv[0, :] + imbalance
-        print("Rebalanced",dc_inv)
-        print("Rebalanced sum",np.sum(dc_inv))
+        # print("Rebalanced dc inv",dc_inv)
+        # print("Rebalanced sum",np.sum(dc_inv))
         if (np.sum(dc_inv,axis=0) != total_inventory).any():
             raise Exception("np.sum(dc_inv) != total_inventory")
         return dc_inv
@@ -245,11 +319,11 @@ if __name__ == "__main__":
     env.render()
     while not done:
         action = agent.act(obs, reward, done)
-        print(f"Agent is taking action: {action}")
+        #print(f"Agent is taking action: {action}")
         # the agent observes the first state and chooses an action
         # environment steps with the agent's action and returns new state and reward
         obs, reward, done, info = env.step(action)
-        print(f"Got reward {reward} done {done}")
+        #print(f"Got reward {reward} done {done}")
 
         # Render the current state of the environment
         env.render()
