@@ -36,12 +36,12 @@ class EnvironmentParameters:
     def __init__(
         self,
         network: PhysicalNetwork,
-        num_episodes: int,
+        num_steps: int,
         order_generator: OrderGenerator,
         inventory_generator: InventoryGenerator,
     ):
         self.network = network
-        self.num_episodes = num_episodes
+        self.num_steps = num_steps
         self.order_generator = order_generator
         self.inventory_generator = inventory_generator
 
@@ -106,7 +106,7 @@ class ShippingFacilityEnvironment(gym.Env):
         self.current_state = self._next_observation()
 
         # Done when the number of timestep generations is the number of episodes.
-        done = self.current_t == self.environment_parameters.num_episodes + 1
+        done = self.current_t == self.environment_parameters.num_steps + 1
 
         # print(f"Stepping with action {action}")
         # obs = random.randint(0, 10)
