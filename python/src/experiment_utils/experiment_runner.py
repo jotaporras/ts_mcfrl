@@ -7,6 +7,7 @@ from envs.network_flow_env import (
 )
 from gym.vector.utils import spaces
 
+from agents import QNAgent
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
@@ -146,6 +147,27 @@ def create_always_first_dc_agent(num_dcs,
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
     generator = NaiveInventoryGenerator()
     agent = AlwaysFirstAgent()
+    return ExperimentRunner(order_generator,generator,agent,physical_network)
+
+def create_dqn_agent(num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+        orders_per_day
+    ):
+    physical_network = PhysicalNetwork(
+        num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+    )
+    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+    generator = NaiveInventoryGenerator()
+    agent = QNAgent()
     return ExperimentRunner(order_generator,generator,agent,physical_network)
 
 

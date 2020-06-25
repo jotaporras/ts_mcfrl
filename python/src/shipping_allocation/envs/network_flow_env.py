@@ -4,6 +4,7 @@ from typing import List, Any
 import typing
 import random
 import numpy as np
+import copy
 
 # Environment and agent
 import gym
@@ -11,10 +12,6 @@ from gym import spaces
 from gym import wrappers
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
-
-from tf_agents.networks import q_network
-from tf_agents.agents.dqn import dqn_agent
-from tf_agents.specs import BoundedArraySpec
 
 #Custome
 from experiment_utils import network_flow_k_optimizer
@@ -84,7 +81,7 @@ class ShippingFacilityEnvironment(gym.Env):
         #obs spec
         dcs = self.environment_parameters.network.num_dcs
         commodities = self.environment_parameters.network.num_commodities
-        shape = (dcs * commodities + commodities, 1)
+        shape = (1,dcs * commodities + commodities)
         self.observation_space = spaces.Box(0, 1000000, shape=shape)
 
         print("Calling init on the ShippingFacilityEnvironment")
@@ -128,7 +125,7 @@ class ShippingFacilityEnvironment(gym.Env):
         # obs = random.randint(0, 10)
         # reward = random.randint(0, 100)
         # done = np.random.choice([True, False])
-        return self.current_state, reward, done, {}
+        return copy.copy(self.current_state), reward, done, {}
 
     # def observation_space(self):
     #     dcs = self.environment_parameters.network.num_dcs
@@ -146,7 +143,7 @@ class ShippingFacilityEnvironment(gym.Env):
         self.current_t = 0
         self.current_state = self._next_observation()
 
-        return self.current_state
+        return copy.copy(self.current_state)
 
     def render(self, mode="human", close=False):
         # Render the environment to the screen
@@ -213,10 +210,10 @@ class ShippingFacilityEnvironment(gym.Env):
         #     self.inventory = self._generate_updated_inventory(0)
         return {
             "physical_network": self.environment_parameters.network,
-            "inventory": self.inventory,
-            "open": self.open_orders,
-            "fixed": self.fixed_orders,
-            "current_t": self.current_t,
+            "inventory": self.inventory.copy(),
+            "open": [copy.deepcopy(o) for o in self.open_orders],
+            "fixed": [copy.deepcopy(o) for o in self.fixed_orders],
+            "current_t": self.current_t
         }
 
     def _generate_orders(self) -> typing.List[Order]:
@@ -301,84 +298,6 @@ class NaiveInventoryGenerator(InventoryGenerator):
         return dc_inv
 
 
-
-
-class Agent(object):
-    """The world's simplest agent!"""
-    def __init__(self, env):
-        self.is_discrete = \
-            type(env.action_space) == gym.spaces.discrete.Discrete
-        
-        if self.is_discrete:
-            self.action_size = env.action_space.n
-            print("Action size:", self.action_size)
-        else:
-            self.action_low = env.action_space.low
-            self.action_high = env.action_space.high
-            self.action_shape = env.action_space.shape
-            print("Action range:", self.action_low, self.action_high)
-        
-    def get_action(self, state):
-        if self.is_discrete:
-            action = random.choice(range(self.action_size))
-        else:
-            action = np.random.uniform(self.action_low,
-                                       self.action_high,
-                                       self.action_shape)
-        return action
-
-class QNAgent(Agent):
-    def __init__(self, env, discount_rate=0.97, learning_rate=0.01):
-        super().__init__(env)
-        self.state_size = env.observation_space.n
-        print("State size:", self.state_size)
-        
-        self.eps = 1.0
-        self.discount_rate = discount_rate
-        self.learning_rate = learning_rate
-        self.build_model()
-        
-        self.sess = tf.Session()
-        self.sess.run(tf.global_variables_initializer())
-
-    def build_model(self):
-        tf.reset_default_graph()
-        self.state_in = tf.placeholder(tf.int32, shape=[1])
-        self.action_in = tf.placeholder(tf.int32, shape=[1])
-        self.target_in = tf.placeholder(tf.float32, shape=[1])
-        
-        self.state = tf.one_hot(self.state_in, depth=self.state_size)
-        self.action = tf.one_hot(self.action_in, depth=self.action_size)
-        
-        #Ya resuelve el tamaño de las capaz intermedias
-        self.q_state = tf.layers.dense(self.state, units=self.action_size, name="q_table")
-        self.q_action = tf.reduce_sum(tf.multiply(self.q_state, self.action), axis=1) #Verificar si realmente es la suma
-        
-        self.loss = tf.reduce_sum(tf.square(self.target_in - self.q_action)) #MALO, corregir con nuestra función
-        #ADAM algorithm
-        self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
-
-    def get_action(self, state):
-        q_state = self.sess.run(self.q_state, feed_dict={self.state_in: [state]})
-        action_greedy = np.argmax(q_state)
-        action_random = super().get_action(state)
-        return action_random if random.random() < self.eps else action_greedy
-
-    def train(self, experience):
-        state, action, next_state, reward, done = ([exp] for exp in experience)
-        
-        q_next = self.sess.run(self.q_state, feed_dict={self.state_in: next_state})
-        q_next[done] = np.zeros([self.action_size])
-        q_target = reward + self.discount_rate * np.max(q_next)
-        
-        feed = {self.state_in: state, self.action_in: action, self.target_in: q_target}
-        self.sess.run(self.optimizer, feed_dict=feed)
-        
-        if done:
-            self.eps = self.eps * 0.99
-            
-    def __del__(self):
-        self.sess.close()
 
 
 if __name__ == "__main__":
