@@ -62,6 +62,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
             mcfarcs[(a.tail.node_id, a.head.node_id)] = a
             mcf.AddArcWithCapacityAndUnitCost(a.tail.node_id, a.head.node_id, inf_capacity, a.cost)
     if problem_balance !=0:
+        print(problem_balance)
         raise Exception(f"Encountered unbalanced problem on {k}")
     #if problem_balance == 0:
         #print("MCF balance for ",k," is ",problem_balance)

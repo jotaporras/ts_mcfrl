@@ -34,7 +34,7 @@ def test_one_timestep():
     print("Initial environment: ")
     env.render()
     while not done:
-        action = agent.act(obs, reward, done)
+        action = agent.get_action(obs, reward, done)
         #print(f"Agent is taking action: {action}")
         # the agent observes the first state and chooses an action
         # environment steps with the agent's action and returns new state and reward
@@ -69,7 +69,7 @@ def run_with_params(num_dcs, num_customers, dcs_per_customer, demand_mean, deman
     print("Initial environment: ")
     env.render()
     while not done:
-        action = agent.act(obs, reward, done)
+        action = agent.get_action(obs, reward, done)
         #print(f"Agent is taking action: {action}")
         # the agent observes the first state and chooses an action
         # environment steps with the agent's action and returns new state and reward

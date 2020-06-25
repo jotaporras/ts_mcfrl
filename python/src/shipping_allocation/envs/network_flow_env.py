@@ -138,6 +138,12 @@ class ShippingFacilityEnvironment(gym.Env):
         #print("Physical network for new env: ")
         #print(self.environment_parameters.network)
         #print("Reseting environment")
+        self.inventory = np.zeros(
+            (
+                self.environment_parameters.network.num_dcs,
+                self.environment_parameters.network.num_commodities,
+            )
+        )  # Matrix of inventory for each dc-k.
         self.fixed_orders = []  # Orders already fixed for delivery
         self.open_orders = []
         self.current_t = 0

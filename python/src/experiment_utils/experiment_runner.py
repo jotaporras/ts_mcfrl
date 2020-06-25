@@ -2,55 +2,57 @@ from envs.network_flow_env import (
     ActualOrderGenerator,
     NaiveInventoryGenerator,
     EnvironmentParameters,
-    ShippingFacilityEnvironment,
-    RandomAgent,
+    ShippingFacilityEnvironment
 )
+
 from gym.vector.utils import spaces
 
-from agents import QNAgent
+from agents import QNAgent, RandomAgent, Agent
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
 
 class ExperimentRunner:
     environment_parameters: EnvironmentParameters
-    def __init__(self, order_generator, inventory_generator, agent, physical_network:PhysicalNetwork):
+    agent: Agent
+
+    def __init__(self, order_generator, inventory_generator, agent, env: ShippingFacilityEnvironment):
         self.order_generator = order_generator
         self.inventory_generator = inventory_generator
         self.agent = agent
-        self.physical_network = physical_network
-        self.environment_parameters = None
+        self.environment_parameters = env.environment_parameters
+        self.physical_network = self.environment_parameters.network
+        self.env = env
 
 
-    def run_episode(self,num_steps):
-        self.environment_parameters = EnvironmentParameters(
-            self.physical_network, num_steps, self.order_generator, self.inventory_generator
-        )
+    def run_episode(self):
 
-        env = ShippingFacilityEnvironment(self.environment_parameters)
-        # agent = RandomAgent(env.action_space)
-
-        obs = env.reset()
+        state = self.env.reset()
         reward = 0
         done = False
         print("=========== starting episode loop ===========")
         print("Initial environment: ")
-        env.render()
+        self.env.render()
         actions = []
         episode_rewards = []
         # demands_per_k = np.zeros((num_commodities,num_steps))
         # inventory_at_t = np.zeros((num_commodities,num_steps)) #todo llenar estos eventualmente
         while not done:
-            action = self.agent.act(obs, reward, done)
+            #action = self.agent.train((obs,action,reward,obs, done))
+            action = self.agent.get_action(state)
 
             # print(f"Agent is taking action: {action}")
             # the agent observes the first state and chooses an action
             # environment steps with the agent's action and returns new state and reward
-            obs, reward, done, info = env.step(action)
+            # obs, reward, done, info = self.env.step(action)#old
+            next_state, reward, done, info = self.env.step(action)
             # print(f"Got reward {reward} done {done}")
+            self.agent.train((state, action, next_state, reward, done))
+
+            state = next_state
 
             # Render the current state of the environment
-            env.render()
+            self.env.render()
             actions.append(action)
             episode_rewards.append(reward)
 
@@ -65,8 +67,9 @@ class ExperimentRunner:
         total_actions = np.zeros(num_steps * orders_per_day)
         elapsed = []
         for i in range(num_episodes):
+            print("\n\nRunning episode: ",i)
             start_time = time.process_time()
-            actions, episode_rewards = self.run_episode(num_steps)
+            actions, episode_rewards = self.run_episode()
             end_time = time.process_time()
 
             total_rewards.append(sum(episode_rewards))
@@ -96,14 +99,14 @@ class ExperimentRunner:
         print("done")
 
 
-#TODO create a different version of this to use another agent.
 def create_random_experiment_runner(num_dcs,
         num_customers,
         dcs_per_customer,
         demand_mean,
         demand_var,
         num_commodities,
-        orders_per_day
+        orders_per_day,
+        num_steps
     ):
     physical_network = PhysicalNetwork(
         num_dcs,
@@ -115,10 +118,15 @@ def create_random_experiment_runner(num_dcs,
     )
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
     generator = NaiveInventoryGenerator()
-    agent = RandomAgent(spaces.Discrete(
-            num_dcs
-    ))
-    return ExperimentRunner(order_generator,generator,agent,physical_network)
+
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
+    )
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = RandomAgent(env)
+
+    return ExperimentRunner(order_generator,generator,agent,env)
 
 
 class AlwaysFirstAgent(object):
@@ -128,13 +136,35 @@ class AlwaysFirstAgent(object):
         return 0
 
 
-def create_always_first_dc_agent(num_dcs,
+# def create_always_first_dc_agent(num_dcs,
+#         num_customers,
+#         dcs_per_customer,
+#         demand_mean,
+#         demand_var,
+#         num_commodities,
+#         orders_per_day
+#     ):
+#     physical_network = PhysicalNetwork(
+#         num_dcs,
+#         num_customers,
+#         dcs_per_customer,
+#         demand_mean,
+#         demand_var,
+#         num_commodities,
+#     )
+#     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+#     generator = NaiveInventoryGenerator()
+#     agent = AlwaysFirstAgent()
+#     return ExperimentRunner(order_generator,generator,agent,physical_network)
+
+def create_dqn_experiment_runner(num_dcs,
         num_customers,
         dcs_per_customer,
         demand_mean,
         demand_var,
         num_commodities,
-        orders_per_day
+        orders_per_day,
+        num_steps
     ):
     physical_network = PhysicalNetwork(
         num_dcs,
@@ -146,30 +176,15 @@ def create_always_first_dc_agent(num_dcs,
     )
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
     generator = NaiveInventoryGenerator()
-    agent = AlwaysFirstAgent()
-    return ExperimentRunner(order_generator,generator,agent,physical_network)
 
-def create_dqn_agent(num_dcs,
-        num_customers,
-        dcs_per_customer,
-        demand_mean,
-        demand_var,
-        num_commodities,
-        orders_per_day
-    ):
-    physical_network = PhysicalNetwork(
-        num_dcs,
-        num_customers,
-        dcs_per_customer,
-        demand_mean,
-        demand_var,
-        num_commodities,
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
     )
-    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
-    generator = NaiveInventoryGenerator()
-    agent = QNAgent()
-    return ExperimentRunner(order_generator,generator,agent,physical_network)
 
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = QNAgent(env)
+
+    return ExperimentRunner(order_generator,generator,agent,env)
 
 
 def run_with_params(
@@ -199,7 +214,7 @@ def run_with_params(
     )
 
     env = ShippingFacilityEnvironment(environment_parameters)
-    agent = RandomAgent(env.action_space)
+    agent = RandomAgent(env)
 
     obs = env.reset()
     reward = 0

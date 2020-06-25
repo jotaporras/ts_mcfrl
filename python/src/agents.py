@@ -11,9 +11,7 @@ from network.PhysicalNetwork import PhysicalNetwork
 
 tf.disable_v2_behavior()
 
-class Agent(object):
-    """The world's simplest agent!"""
-
+class Agent:
     def __init__(self, env):
         self.is_discrete = \
             type(env.action_space) == gym.spaces.discrete.Discrete
@@ -35,10 +33,19 @@ class Agent(object):
                                        self.action_high,
                                        self.action_shape)
         return action
+    def train(self, experience):
+        pass
+
+
+class RandomAgent(Agent):
+    """The world's simplest agent!"""
+
+    def train(self, experience):
+        pass #do nothing
 
 
 class QNAgent(Agent):
-    def __init__(self, env, discount_rate=0.97, learning_rate=0.01):
+    def __init__(self, env, discount_rate=0.9, learning_rate=0.015):
         super().__init__(env)
         self.state_size = env.observation_space.shape
         self.action_space_size = env.action_space.n
@@ -75,7 +82,8 @@ class QNAgent(Agent):
         q_state = self.sess.run(self.q_state, feed_dict={self.state_in: state_vector})
         action_greedy = np.argmax(q_state)
         action_random = super().get_action(state)
-        return action_random if random.random() < self.eps else action_greedy
+        chosen_action = action_random if random.random() < self.eps else action_greedy
+        return chosen_action
 
     def train(self, experience):
         state, action, next_state, reward, done = experience
