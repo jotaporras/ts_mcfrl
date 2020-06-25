@@ -1,8 +1,8 @@
-from envs.network_flow_env import (
+from shipping_allocation.envs.network_flow_env import (
     ActualOrderGenerator,
     NaiveInventoryGenerator,
     EnvironmentParameters,
-    ShippingFacilityEnvironment
+    ShippingFacilityEnvironment, DirichletInventoryGenerator
 )
 
 from gym.vector.utils import spaces
@@ -117,7 +117,7 @@ def create_random_experiment_runner(num_dcs,
         num_commodities,
     )
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
-    generator = NaiveInventoryGenerator()
+    generator = DirichletInventoryGenerator(physical_network)
 
     environment_parameters = EnvironmentParameters(
         physical_network, num_steps, order_generator, generator
@@ -175,7 +175,7 @@ def create_dqn_experiment_runner(num_dcs,
         num_commodities,
     )
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
-    generator = NaiveInventoryGenerator()
+    generator = DirichletInventoryGenerator(physical_network)
 
     environment_parameters = EnvironmentParameters(
         physical_network, num_steps, order_generator, generator
@@ -208,7 +208,7 @@ def run_with_params(
     )
     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
-    generator = NaiveInventoryGenerator()
+    generator = DirichletInventoryGenerator(physical_network)
     environment_parameters = EnvironmentParameters(
         physical_network, num_steps, order_generator, generator
     )

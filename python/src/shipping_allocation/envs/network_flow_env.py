@@ -266,6 +266,17 @@ class NaiveOrderGenerator(OrderGenerator):
         ]
 
 
+class ActualOrderGeneratorOld(OrderGenerator):
+    network: PhysicalNetwork
+    orders_per_day: int
+
+    def __init__(self, network: PhysicalNetwork, orders_per_day):
+        self.network = network
+        self.orders_per_day = orders_per_day
+
+    def generate_orders(self,current_t) -> List[Order]:
+        return self.network.generate_orders(self.orders_per_day,current_t)
+
 class ActualOrderGenerator(OrderGenerator):
     network: PhysicalNetwork
     orders_per_day: int
@@ -303,53 +314,86 @@ class NaiveInventoryGenerator(InventoryGenerator):
             raise Exception("np.sum(dc_inv) != total_inventory")
         return dc_inv
 
+class DirichletInventoryGenerator(InventoryGenerator):
+
+    def __init__(self,network):
+        num_dcs = network.num_dcs
+        num_commodities = network.num_commodities
+        self.alpha = np.random.permutation(num_dcs/np.arange(1,num_dcs+1))
+        self.inventory_generation_distribution = np.random.dirichlet(self.alpha, num_commodities)  # (num_dc,num_k) of dc distribution of inventory.
+
+    def generate_new_inventory(
+        self, network: PhysicalNetwork, open_orders: List[Order]
+    ):
+        #print("==> inventory generator")
+        total_inventory = sum(
+            map(lambda o: o.demand, open_orders)
+        )  # TODO rename and do for many commmodities.
+        #even = total_inventory // network.num_dcs
+        inventory_distribution = self.inventory_generation_distribution
+
+        supply_per_dc = np.floor(total_inventory.reshape(-1, 1) * inventory_distribution)
+        imbalance = total_inventory - np.sum(supply_per_dc, axis=1)
+        supply_per_dc[:, 0] = supply_per_dc[:, 0] + imbalance
+
+        # print("Demand", total_inventory)
+        # print("Pre level dc_inv")
+        # print(dc_inv)
+        # print("Total new inv",np.sum(dc_inv))
+        #if total_inventory // network.num_dcs != total_inventory / network.num_dcs:
+        # print("Rebalanced dc inv",dc_inv)
+        # print("Rebalanced sum",np.sum(dc_inv))
+        if not np.isclose(np.sum(np.sum(supply_per_dc, axis=1) - total_inventory), 0.0):
+            raise RuntimeError("Demand was not correctly balanced")
+        return supply_per_dc.transpose()
 
 
 
-if __name__ == "__main__":
-    num_dcs = 2
-    num_customers = 1
-    num_commodities = 3
-    orders_per_day = 1
-    dcs_per_customer = 1
-    demand_mean = 100
-    demand_var = 20
 
-    num_episodes = 5
-
-    physical_network = PhysicalNetwork(num_dcs, num_customers, dcs_per_customer,demand_mean,demand_var,num_commodities)
-    # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
-    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
-    generator = NaiveInventoryGenerator()
-    environment_parameters = EnvironmentParameters(
-        physical_network, num_episodes, order_generator, generator
-    )
-
-    env = ShippingFacilityEnvironment(environment_parameters)
-    agent = QNAgent(env)
-
-    state = env.reset()
-    reward = 0
-    done = False
-    print("=========== starting episode loop ===========")
-    print("Initial environment: ")
-    env.render()
-    while not done:
-        action = agent.get_action((state, reward))
-        print(f"Agent is taking action: {action}")
-        # the agent observes the first state and chooses an action
-        # environment steps with the agent's action and returns new state and reward
-        next_state, reward, done, info = env.step(action)
-        print(f"Got reward {reward} done {done}")
-
-        agent.train((state,action,next_state,reward,done))
-
-        state = next_state
-        # Render the current state of the environment
-        env.render()
-
-        if done:
-            print("===========Environment says we are DONE ===========")
+# if __name__ == "__main__":
+#     num_dcs = 2
+#     num_customers = 1
+#     num_commodities = 3
+#     orders_per_day = 1
+#     dcs_per_customer = 1
+#     demand_mean = 100
+#     demand_var = 20
+#
+#     num_episodes = 5
+#
+#     physical_network = PhysicalNetwork(num_dcs, num_customers, dcs_per_customer,demand_mean,demand_var,num_commodities)
+#     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
+#     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+#     generator = NaiveInventoryGenerator()
+#     environment_parameters = EnvironmentParameters(
+#         physical_network, num_episodes, order_generator, generator
+#     )
+#
+#     env = ShippingFacilityEnvironment(environment_parameters)
+#     agent = QNAgent(env)
+#
+#     state = env.reset()
+#     reward = 0
+#     done = False
+#     print("=========== starting episode loop ===========")
+#     print("Initial environment: ")
+#     env.render()
+#     while not done:
+#         action = agent.get_action((state, reward))
+#         print(f"Agent is taking action: {action}")
+#         # the agent observes the first state and chooses an action
+#         # environment steps with the agent's action and returns new state and reward
+#         next_state, reward, done, info = env.step(action)
+#         print(f"Got reward {reward} done {done}")
+#
+#         agent.train((state,action,next_state,reward,done))
+#
+#         state = next_state
+#         # Render the current state of the environment
+#         env.render()
+#
+#         if done:
+#             print("===========Environment says we are DONE ===========")
 
 
 

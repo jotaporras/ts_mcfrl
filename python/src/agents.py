@@ -47,7 +47,7 @@ class RandomAgent(Agent):
 class QNAgent(Agent):
     def __init__(self, env, discount_rate=0.9, learning_rate=0.015):
         super().__init__(env)
-        self.state_size = env.observation_space.shape
+        self.state_size = env.observation_space.shape[1]+4
         self.action_space_size = env.action_space.n
         print("State size:", self.state_size)
 
@@ -61,7 +61,7 @@ class QNAgent(Agent):
 
     def build_model(self):
         tf.reset_default_graph()
-        self.state_in = tf.placeholder(tf.float32, shape=self.state_size,name='state_in')
+        self.state_in = tf.placeholder(tf.float32, shape=[1,self.state_size],name='state_in')
         self.action_in = tf.placeholder(tf.int32, shape=[1],name='action_in')
         self.target_in = tf.placeholder(tf.float32, shape=[1],name='target_in')
 
@@ -96,6 +96,9 @@ class QNAgent(Agent):
         q_next[done] = np.zeros([self.action_size])
         q_target = reward + self.discount_rate * np.max(q_next)
 
+        if next_state['current_t']%10:
+            print("Q value: ",q_target)
+
         feed = {self.state_in: state_vector, self.action_in: [action], self.target_in: [q_target]}
         self.sess.run(self.optimizer, feed_dict=feed)
 
@@ -114,7 +117,14 @@ class QNAgent(Agent):
         stacked_inventory = inventory.reshape(-1,1)
         latest_open_order = state['open'][0]
         reshaped_demand = latest_open_order.demand.reshape(-1,1)
-        state_vector = np.concatenate([stacked_inventory, reshaped_demand]) #TODO add to this the customer order id.
+
+        #4 extra metadata neurons.
+        ship_id = latest_open_order.shipping_point.node_id
+        customer_id = latest_open_order.customer.node_id
+        current_t = state['current_t']
+        delivery_t = latest_open_order.due_timestep
+        metadata = np.array([[ship_id,customer_id,current_t,delivery_t]]).transpose()
+        state_vector = np.concatenate([stacked_inventory, reshaped_demand,metadata]) #TODO add to this the customer order id.
         return state_vector.transpose() #np.array((1,num_dcs*num_commodities + num_commodities))
 
 

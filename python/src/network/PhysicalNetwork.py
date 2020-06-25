@@ -45,6 +45,7 @@ class PhysicalNetwork:
     planning_horizon: int
 
     def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=3):
+        print("Calling physical network gen")
         self.default_storage_cost = 1 #TODO HARDWIRED CONSTANTS
         self.default_delivery_time = 3 #TODO HARDWIRED CONSTANTS
         self.default_dc_transport_cost = 10 #TODO HARDWIRED CONSTANTS
@@ -101,11 +102,25 @@ class PhysicalNetwork:
                     self.arcs.append(Arc(arc_id, node1, node2, 1, 0, 1,name=str(node1.node_id) + "_to_" + str(node2.node_id)))
                     arc_id+=1
 
+        #heavymetal distribution.
+        total_demand_mean = self.demand_mean * self.num_customers * self.num_commodities
+        # self.demand_mean_matrix = np.floor(
+        #     np.random.dirichlet(self.num_customers / np.arange(1, self.num_customers + 1),
+        #                         size=1) * total_demand_mean).reshape(-1) #(cust)
+        self.demand_mean_matrix = np.floor(
+            np.random.dirichlet([5.]*self.num_customers,
+                                size=1) * total_demand_mean).reshape(-1)  # (cust)
+
         # Generate distribution parameters for the customers.
-        self.customer_means = np.random.poisson(self.demand_mean, size=self.num_customers)
+        # self.customer_means = np.random.poisson(self.demand_mean, size=self.num_customers)
+        self.customer_means = np.floor(
+            np.random.dirichlet(self.num_customers / np.arange(1, self.num_customers + 1),
+                                size=1) * total_demand_mean).reshape(-1) #(cust)
+
+        print("Current customer means",self.customer_means)
 
         # Parameters for inventory distribution hardwired for now.
-        self.inventory_dirichlet_parameters = [5.] * self.num_dcs
+        self.inventory_dirichlet_parameters = [5.] * self.num_dcs #todo deprecated not used
 
         # TODO probably delete this.
         #Generate a random arc between dcs and costumers
@@ -128,7 +143,11 @@ class PhysicalNetwork:
 
         demand = np.floor(np.random.multivariate_normal(order_means, np.eye(orders_per_day) * self.demand_var,
                                       size=self.num_commodities))  # shape (num_commodities,num_orders)
-
+        if (demand<0).any():
+            print("Customer means that caused negatives")
+            print(order_means)
+            #raise Exception("Generated a negative order")
+            demand = np.abs(demand)
         # Create order objects
         orders = []
         for ci in range(len(chosen_customers)):
