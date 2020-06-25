@@ -71,6 +71,13 @@ class ShippingFacilityEnvironment(gym.Env):
         )  # Matrix of inventory for each dc-k.
         self.transports_acc = np.zeros(self.inventory.shape)
 
+
+        #obs spec
+        dcs = self.environment_parameters.network.num_dcs
+        commodities = self.environment_parameters.network.num_commodities
+        shape = (dcs * commodities + commodities, 1)
+        self.observation_space = spaces.Box(0, 1000000, shape=shape)
+
         print("Calling init on the ShippingFacilityEnvironment")
 
     # Taking a step forward after the agent selects an action for the current state.
@@ -113,6 +120,12 @@ class ShippingFacilityEnvironment(gym.Env):
         # reward = random.randint(0, 100)
         # done = np.random.choice([True, False])
         return self.current_state, reward, done, {}
+
+    # def observation_space(self):
+    #     dcs = self.environment_parameters.network.num_dcs
+    #     commodities = self.environment_parameters.network.num_commodities
+    #     shape = (dcs * commodities+num_commodities, 1)
+    #     return spaces.Box(0,1000000,shape=shape)
 
     def reset(self):
         # Reset the state of the environment to an initial state

@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 
-setup(name='shipping_allocation',
+print("Running setup")
+setup(name='shipping-allocation',
       packages=find_packages(),
       include_package_data=True,
       # package_data={
