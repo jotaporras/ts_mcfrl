@@ -1,18 +1,25 @@
 from abc import ABC
 from typing import List, Any
 
-import gym
-
-
 import typing
-from gym import spaces
 import random
 import numpy as np
 
+# Environment and agent
+import gym
+from gym import spaces
+from gym import wrappers
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+
+from tf_agents.networks import q_network
+from tf_agents.agents.dqn import dqn_agent
+from tf_agents.specs import BoundedArraySpec
+
+#Custome
 from experiment_utils import network_flow_k_optimizer
 from network.PhysicalNetwork import PhysicalNetwork
 from locations.Order import Order
-
 DEBUG=False
 
 # Abstract classes. BARNUM, you have to implement these
@@ -63,6 +70,8 @@ class ShippingFacilityEnvironment(gym.Env):
         self.action_space = spaces.Discrete(
             self.environment_parameters.network.num_dcs
         )  # The action space is choosing a DC for the current order.
+        self.observation_space = spaces.Box(np.zeros(self.environment_parameters.network.num_dcs), np.ones(self.environment_parameters.network.num_dcs)) #El 4 está mal, me parece que debería ser t
+        self.observation_space = spaces.Discrete(3) #Momentanio, sólo para la implementación del agente
         self.inventory = np.zeros(
             (
                 self.environment_parameters.network.num_dcs,
@@ -279,14 +288,84 @@ class NaiveInventoryGenerator(InventoryGenerator):
         return dc_inv
 
 
-class RandomAgent(object):
+
+
+class Agent(object):
     """The world's simplest agent!"""
+    def __init__(self, env):
+        self.is_discrete = \
+            type(env.action_space) == gym.spaces.discrete.Discrete
+        
+        if self.is_discrete:
+            self.action_size = env.action_space.n
+            print("Action size:", self.action_size)
+        else:
+            self.action_low = env.action_space.low
+            self.action_high = env.action_space.high
+            self.action_shape = env.action_space.shape
+            print("Action range:", self.action_low, self.action_high)
+        
+    def get_action(self, state):
+        if self.is_discrete:
+            action = random.choice(range(self.action_size))
+        else:
+            action = np.random.uniform(self.action_low,
+                                       self.action_high,
+                                       self.action_shape)
+        return action
 
-    def __init__(self, action_space):
-        self.action_space = action_space
+class QNAgent(Agent):
+    def __init__(self, env, discount_rate=0.97, learning_rate=0.01):
+        super().__init__(env)
+        self.state_size = env.observation_space.n
+        print("State size:", self.state_size)
+        
+        self.eps = 1.0
+        self.discount_rate = discount_rate
+        self.learning_rate = learning_rate
+        self.build_model()
+        
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
 
-    def act(self, observation, reward, done):
-        return self.action_space.sample()
+    def build_model(self):
+        tf.reset_default_graph()
+        self.state_in = tf.placeholder(tf.int32, shape=[1])
+        self.action_in = tf.placeholder(tf.int32, shape=[1])
+        self.target_in = tf.placeholder(tf.float32, shape=[1])
+        
+        self.state = tf.one_hot(self.state_in, depth=self.state_size)
+        self.action = tf.one_hot(self.action_in, depth=self.action_size)
+        
+        #Ya resuelve el tamaño de las capaz intermedias
+        self.q_state = tf.layers.dense(self.state, units=self.action_size, name="q_table")
+        self.q_action = tf.reduce_sum(tf.multiply(self.q_state, self.action), axis=1) #Verificar si realmente es la suma
+        
+        self.loss = tf.reduce_sum(tf.square(self.target_in - self.q_action)) #MALO, corregir con nuestra función
+        #ADAM algorithm
+        self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+
+    def get_action(self, state):
+        q_state = self.sess.run(self.q_state, feed_dict={self.state_in: [state]})
+        action_greedy = np.argmax(q_state)
+        action_random = super().get_action(state)
+        return action_random if random.random() < self.eps else action_greedy
+
+    def train(self, experience):
+        state, action, next_state, reward, done = ([exp] for exp in experience)
+        
+        q_next = self.sess.run(self.q_state, feed_dict={self.state_in: next_state})
+        q_next[done] = np.zeros([self.action_size])
+        q_target = reward + self.discount_rate * np.max(q_next)
+        
+        feed = {self.state_in: state, self.action_in: action, self.target_in: q_target}
+        self.sess.run(self.optimizer, feed_dict=feed)
+        
+        if done:
+            self.eps = self.eps * 0.99
+            
+    def __del__(self):
+        self.sess.close()
 
 
 if __name__ == "__main__":
@@ -298,7 +377,7 @@ if __name__ == "__main__":
     demand_mean = 100
     demand_var = 20
 
-    num_episodes = 1
+    num_episodes = 5
 
     physical_network = PhysicalNetwork(num_dcs, num_customers, dcs_per_customer,demand_mean,demand_var,num_commodities)
     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
@@ -309,27 +388,33 @@ if __name__ == "__main__":
     )
 
     env = ShippingFacilityEnvironment(environment_parameters)
-    agent = RandomAgent(env.action_space)
+    agent = QNAgent(env)
 
-    obs = env.reset()
+    state = env.reset()
     reward = 0
     done = False
     print("=========== starting episode loop ===========")
     print("Initial environment: ")
     env.render()
     while not done:
-        action = agent.act(obs, reward, done)
-        #print(f"Agent is taking action: {action}")
+        action = agent.get_action((state, reward))
+        print(f"Agent is taking action: {action}")
         # the agent observes the first state and chooses an action
         # environment steps with the agent's action and returns new state and reward
-        obs, reward, done, info = env.step(action)
-        #print(f"Got reward {reward} done {done}")
+        next_state, reward, done, info = env.step(action)
+        print(f"Got reward {reward} done {done}")
 
+        agent.train((state,action,next_state,reward,done))
+
+        state = next_state
         # Render the current state of the environment
         env.render()
 
         if done:
             print("===========Environment says we are DONE ===========")
+
+
+
 #TODO aqui quede, works on first step pero no tengo la ventana de tiempo lista todavía, además está faltando un arco para la orden vieja.
 # EJ:
 # mcf.SetNodeSupply(0,int(114.0))
