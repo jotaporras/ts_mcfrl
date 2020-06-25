@@ -1,4 +1,4 @@
-from envs.network_flow_env import EnvironmentParameters, NaiveOrderGenerator, NaiveInventoryGenerator
+from shipping_allocation.envs.network_flow_env import EnvironmentParameters, NaiveOrderGenerator, NaiveInventoryGenerator
 from gym.envs.registration import register
 
 from network.PhysicalNetwork import PhysicalNetwork

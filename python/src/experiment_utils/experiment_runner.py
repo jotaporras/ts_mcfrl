@@ -1,4 +1,4 @@
-from envs.network_flow_env import (
+from shipping_allocation.envs.network_flow_env import (
     ActualOrderGenerator,
     NaiveInventoryGenerator,
     EnvironmentParameters,
