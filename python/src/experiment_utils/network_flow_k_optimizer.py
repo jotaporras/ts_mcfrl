@@ -84,9 +84,9 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
     #         mcf.AddArcWithCapacityAndUnitCost(a.tail,a.head,inf_capacity,a.cost) #todo validate.
 
     #print("Running optimization")
-    start = time.process_time_ns()
+    start = time.process_time()
     status = mcf.Solve()
-    end = time.process_time_ns()
+    end = time.process_time()
     elapsed_ms = (end - start) / 1000000
     #print(f"elapsed {elapsed_ms}ms")
     #print(f"elapsed {round_to_1(elapsed_ms / 1000)}s")
