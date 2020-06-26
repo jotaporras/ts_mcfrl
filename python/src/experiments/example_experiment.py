@@ -50,10 +50,15 @@ def run_large_experiment():
                                                                 demand_var, num_commodities, orders_per_day, num_steps)
     runner_zero = experiment_runner.create_alwayszero_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean,
                                                                 demand_var, num_commodities, orders_per_day, num_steps)
+    runner_bestfit = experiment_runner.create_bestfit_experiment_runner(num_dcs, num_customers, dcs_per_customer,
+                                                                        demand_mean,
+                                                                        demand_var, num_commodities, orders_per_day,
+                                                                        num_steps)                                                            
     runner_random.run_episodes(num_steps, num_episodes, orders_per_day, experiment_name='dumb_agent')
     runner_dqn.run_episodes(num_steps, num_episodes, orders_per_day, experiment_name='dqn_agent')
     runner_zero.run_episodes(num_steps, num_episodes, orders_per_day, experiment_name='zero_agent')
+    runner_bestfit.run_episodes(num_steps, num_episodes, orders_per_day, experiment_name='bestfit_agent') #todo aqui quedé testear la red grande.
 
 if __name__ == "__main__":
-    small_validation_experiments()
+    #small_validation_experiments()
     run_large_experiment()
