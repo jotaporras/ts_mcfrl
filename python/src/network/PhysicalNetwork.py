@@ -44,7 +44,7 @@ class PhysicalNetwork:
     inventory_dirichlet_parameters: np.array
     planning_horizon: int
 
-    def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=7):
+    def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=5):
         print("Calling physical network gen")
         self.default_storage_cost = 1 #TODO HARDWIRED CONSTANTS
         self.default_delivery_time = 3 #TODO HARDWIRED CONSTANTS

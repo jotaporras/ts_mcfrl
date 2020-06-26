@@ -5,7 +5,7 @@ from experiments.experiment_params import *
 
 if __name__ == "__main__":
 
-    for i in range(num_experiments):
+    for i in reversed(list(range(num_experiments))):
         print("Running experiment id ", i)
         # parameters:
         num_dcs = dcs_list[i]
