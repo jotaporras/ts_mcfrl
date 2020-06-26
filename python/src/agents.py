@@ -4,7 +4,7 @@ import random
 import gym
 import numpy as np
 import tensorflow.compat.v1 as tf
-from envs.network_flow_env import ActualOrderGenerator, NaiveInventoryGenerator, EnvironmentParameters, \
+from shipping_allocation.envs.network_flow_env import ActualOrderGenerator, NaiveInventoryGenerator, EnvironmentParameters, \
     ShippingFacilityEnvironment
 
 from network.PhysicalNetwork import PhysicalNetwork
