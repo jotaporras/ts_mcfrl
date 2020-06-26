@@ -43,6 +43,42 @@ class RandomAgent(Agent):
     def train(self, experience):
         pass #do nothing
 
+class AlwaysZeroAgent(Agent):
+    """The world's dumbest agent!"""
+
+    def get_action(self, state):
+        return 0
+
+    def train(self, experience):
+        pass #do nothing
+
+class BestFitAgent(Agent):
+    """The world's most conservative agent!"""
+    env:ShippingFacilityEnvironment
+    network:PhysicalNetwork
+    def __init__(self, env):
+        super().__init__(env)
+        self.env=env
+        self.network = env.environment_parameters.network
+
+
+    def get_action(self, state):
+        inventory = state['inventory']
+        order = state['open'][0]
+        customer = order.customer
+        cid = self.network.num_dcs-customer.node_id
+        cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[0]
+        allowed_dc_invs = inventory[cust_dcs,:]
+        demand = order.demand
+        remaining  = np.sum(allowed_dc_invs-demand,axis=1)
+        chosen_dc_index= np.argmax(remaining)
+        chosen_dc_id = cust_dcs[chosen_dc_index]
+
+        return chosen_dc_id#todo test thbis.
+
+    def train(self, experience):
+        pass #do nothing
+
 
 class QNAgent(Agent):
     def __init__(self, env, discount_rate=0.9, learning_rate=0.015):
@@ -69,7 +105,12 @@ class QNAgent(Agent):
         self.action = tf.transpose(tf.one_hot(self.action_in, depth=1))
 
         # Ya resuelve el tamaño de las capaz intermedias
-        self.q_state = tf.layers.dense(self.state_in, units=self.action_space_size, name="q_table")
+        self.l1=tf.layers.dense(self.state_in,units=self.action_space_size*10,activation=tf.nn.relu)
+        self.l2=tf.layers.dense(self.l1,units=self.action_space_size*5,activation=tf.nn.relu)
+        self.l3=tf.layers.dense(self.l2,units=self.action_space_size*2,activation=tf.nn.relu)
+        self.q_state = tf.layers.dense(self.l3, units=self.action_space_size, name="q_table")
+
+        #self.q_state = tf.layers.dense(self.state_in, units=self.action_space_size, name="q_table")
         self.q_action = tf.reduce_sum(tf.multiply(self.q_state, self.action),
                                       axis=1)  # Verificar si realmente es la suma
 

@@ -7,7 +7,7 @@ from shipping_allocation.envs.network_flow_env import (
 
 from gym.vector.utils import spaces
 
-from agents import QNAgent, RandomAgent, Agent
+from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
@@ -128,6 +128,35 @@ def create_random_experiment_runner(num_dcs,
 
     return ExperimentRunner(order_generator,generator,agent,env)
 
+def create_alwayszero_experiment_runner(num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+        orders_per_day,
+        num_steps
+    ):
+    physical_network = PhysicalNetwork(
+        num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+    )
+    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+    generator = DirichletInventoryGenerator(physical_network)
+
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
+    )
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = AlwaysZeroAgent(env)
+
+    return ExperimentRunner(order_generator,generator,agent,env)
+
 
 class AlwaysFirstAgent(object):
     """The world's DUMBEST agent!"""
@@ -186,6 +215,27 @@ def create_dqn_experiment_runner(num_dcs,
 
     return ExperimentRunner(order_generator,generator,agent,env)
 
+def create_bestfit_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean, demand_var, num_commodities,
+                                     orders_per_day, num_steps):
+    physical_network = PhysicalNetwork(
+        num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+    )
+    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+    generator = DirichletInventoryGenerator(physical_network)
+
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
+    )
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = BestFitAgent(env)
+
+    return ExperimentRunner(order_generator, generator, agent, env)
 
 def run_with_params(
     num_dcs,

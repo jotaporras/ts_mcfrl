@@ -51,6 +51,7 @@ class PhysicalNetwork:
         self.default_dc_transport_cost = 10 #TODO HARDWIRED CONSTANTS
         self.default_customer_transport_cost = 15 #TODO HARDWIRED CONSTANTS
         self.default_inf_capacity = 999999
+        self.big_m_cost = self.default_customer_transport_cost*100
         self.demand_var = demand_var
         self.demand_mean = demand_mean
         self.planning_horizon = planning_horizon
@@ -160,6 +161,10 @@ class PhysicalNetwork:
             orders.append(Order(order_demand_vector, initial_point_physical_node, customer_node, time, name=f"oc_{customer_node.node_id}:{time}"))
         #print("Orders",orders)
         return orders
+
+    def is_valid_arc(self,dc,customer):
+        base_customer_id=self.num_dcs-customer
+        return self.dcs_per_customer_array[base_customer_id,dc]==1
 
     def __repr__(self):
         return str(self.__dict__)

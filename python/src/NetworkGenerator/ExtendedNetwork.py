@@ -160,8 +160,16 @@ class ExtendedNetwork:
                 if current_t <= order.due_timestep <= planning_horizon_t and order.demand[k]>0:
                     head = self.location_time_nodemap[(order.customer.node_id, order.due_timestep)][k]
                     tail = self.location_time_nodemap[(order.shipping_point.node_id, order.due_timestep)][k]#todo maybe modify to timestep-1
-                    arc = Arc(arc_id_incr,tail,head, network.default_customer_transport_cost, network.default_inf_capacity, k,name=f"{tail.name}=>{head.name}")
+                    valid_connection = network.is_valid_arc(order.shipping_point.node_id,order.customer.node_id)
+                    cost = network.default_customer_transport_cost if valid_connection else network.big_m_cost
+                    # if not valid_connection:
+                    #     print("Order ",order," is scheduled from an invalid shipping point, with a cost",cost)
+                    # else:
+                    #     print("Ship pt is valid")
+                    arc = Arc(arc_id_incr,tail,head, cost, network.default_inf_capacity, k,name=f"{tail.name}=>{head.name}")
                     arcs.append(arc)
                     arc_id_incr += 1
 
         return arcs
+
+#TODO check if big M costs are being assigned to invalid arcs!!!!
