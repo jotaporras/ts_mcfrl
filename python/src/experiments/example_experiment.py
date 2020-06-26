@@ -40,8 +40,8 @@ def run_large_experiment():
     demand_mean = 200
     demand_var = 20
 
-    num_steps = 50
-    num_episodes = 500
+    num_steps = 30
+    num_episodes = 300
 
     runner_random = experiment_runner.create_random_experiment_runner(num_dcs, num_customers, dcs_per_customer,
                                                                       demand_mean, demand_var, num_commodities,
