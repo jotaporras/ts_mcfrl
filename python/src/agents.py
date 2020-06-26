@@ -91,7 +91,6 @@ class QNAgent(Agent):
         self.discount_rate = discount_rate
         self.learning_rate = learning_rate
         self.build_model()
-
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
@@ -127,6 +126,7 @@ class QNAgent(Agent):
         return chosen_action
 
     def train(self, experience):
+        #print("agent.train()")
         state, action, next_state, reward, done = experience
 
         #TODO transform state into vector.

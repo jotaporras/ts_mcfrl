@@ -10,7 +10,7 @@ def small_validation_experiments():
     demand_var = 20
 
     num_steps = 15
-    num_episodes = 20
+    num_episodes = 5
 
     runner_random = experiment_runner.create_random_experiment_runner(num_dcs, num_customers, dcs_per_customer,
                                                                       demand_mean, demand_var, num_commodities,

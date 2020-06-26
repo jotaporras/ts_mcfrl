@@ -44,7 +44,7 @@ class PhysicalNetwork:
     inventory_dirichlet_parameters: np.array
     planning_horizon: int
 
-    def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=3):
+    def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=7):
         print("Calling physical network gen")
         self.default_storage_cost = 1 #TODO HARDWIRED CONSTANTS
         self.default_delivery_time = 3 #TODO HARDWIRED CONSTANTS
@@ -116,7 +116,7 @@ class PhysicalNetwork:
         # self.customer_means = np.random.poisson(self.demand_mean, size=self.num_customers)
         self.customer_means = np.floor(
             np.random.dirichlet(self.num_customers / np.arange(1, self.num_customers + 1),
-                                size=1) * total_demand_mean).reshape(-1) #(cust)
+                                size=1) * total_demand_mean).reshape(-1)+self.demand_mean#(cust) #sum mean at the end to avoid negs.
 
         print("Current customer means",self.customer_means)
 
@@ -163,7 +163,7 @@ class PhysicalNetwork:
         return orders
 
     def is_valid_arc(self,dc,customer):
-        base_customer_id=self.num_dcs-customer
+        base_customer_id=customer-self.num_dcs
         return self.dcs_per_customer_array[base_customer_id,dc]==1
 
     def __repr__(self):
