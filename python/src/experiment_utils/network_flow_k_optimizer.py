@@ -108,7 +108,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
                 #print(f"***This a transp arc id {a.arc_id} with flow",a,mcf.Flow(ai)) #toido aqui quede y ver bien flows.
             #else:
                # print("")
-        #print('Minimum cost:', mcf.OptimalCost())
+        # print('Minimum cost:', mcf.OptimalCost())
 
     else:
         print(f"Status",status)

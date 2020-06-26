@@ -165,7 +165,7 @@ class ExtendedNetwork:
                     # if not valid_connection:
                     #     print("Order ",order," is scheduled from an invalid shipping point, with a cost",cost)
                     # else:
-                    #     print("Ship pt is valid")
+                    #     print("Ship pt is valid cost",cost)
                     arc = Arc(arc_id_incr,tail,head, cost, network.default_inf_capacity, k,name=f"{tail.name}=>{head.name}")
                     arcs.append(arc)
                     arc_id_incr += 1

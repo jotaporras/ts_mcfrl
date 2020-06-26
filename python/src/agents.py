@@ -96,7 +96,7 @@ class QNAgent(Agent):
 
     def build_model(self):
         tf.reset_default_graph()
-        self.state_in = tf.placeholder(tf.float32, shape=[1,self.state_size],name='state_in')
+        self.state_in = tf.linalg.normalize(tf.placeholder(tf.float32, shape=[1,self.state_size],name='state_in'),axis=1)[0]
         self.action_in = tf.placeholder(tf.int32, shape=[1],name='action_in')
         self.target_in = tf.placeholder(tf.float32, shape=[1],name='target_in')
 
@@ -104,16 +104,16 @@ class QNAgent(Agent):
         self.action = tf.transpose(tf.one_hot(self.action_in, depth=1))
 
         # Ya resuelve el tamaño de las capaz intermedias
-        self.l1=tf.layers.dense(self.state_in,units=self.action_space_size*10,activation=tf.nn.relu)
-        self.l2=tf.layers.dense(self.l1,units=self.action_space_size*5,activation=tf.nn.relu)
-        self.l3=tf.layers.dense(self.l2,units=self.action_space_size*2,activation=tf.nn.relu)
+        self.l1=tf.layers.dense(self.state_in,units=self.action_space_size*10,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
+        self.l2=tf.layers.dense(self.l1,units=self.action_space_size*5,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
+        self.l3=tf.layers.dense(self.l2,units=self.action_space_size*2,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
         self.q_state = tf.layers.dense(self.l3, units=self.action_space_size, name="q_table")
 
         #self.q_state = tf.layers.dense(self.state_in, units=self.action_space_size, name="q_table")
         self.q_action = tf.reduce_sum(tf.multiply(self.q_state, self.action),
                                       axis=1)  # Verificar si realmente es la suma
 
-        self.loss = tf.reduce_sum(tf.square(self.target_in - self.q_action))
+        self.loss = tf.reduce_sum(self.target_in - self.q_action)
         # ADAM algorithm
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
@@ -137,8 +137,27 @@ class QNAgent(Agent):
         q_next[done] = np.zeros([self.action_size])
         q_target = reward + self.discount_rate * np.max(q_next)
 
-        if next_state['current_t']%10:
-            print("Q value: ",q_target)
+        # if True:
+        #     print("DEBUG NETWORK ON STEP",state['current_t'])
+        #     print("reward: ",reward)
+        #     print("Q target: ",q_target)
+        #     print("Q next: ",q_next)
+        #
+        #     #q_next,loss,target_in,q_action = self.sess.run([self.q_state,self.loss,self.target_in,self.q_action], feed_dict={self.state_in: next_state_vector})
+        #     #q_next,loss = self.sess.run([self.q_state,self.loss], feed_dict={self.state_in: next_state_vector})
+        #     q_state_debug,loss,l1,l2,l3,q_action,act = self.sess.run([self.q_state,self.loss,self.l1,self.l2,self.l3,self.q_action, self.action], feed_dict={self.state_in: state_vector,
+        #                                                                      self.action_in: [action],
+        #                                                                            self.target_in: [q_target]})
+        #     print("Q next: ", q_state_debug)
+        #     print("Q q_action: ", q_action)
+        #     print("Q action: ",act)
+        #     print("layers",l1,l2,l3)
+        #     print("TARGET IN",q_target)
+        #     print("Q ACTION",q_action)
+        #     print("Current loss", loss)
+
+
+
 
         feed = {self.state_in: state_vector, self.action_in: [action], self.target_in: [q_target]}
         self.sess.run(self.optimizer, feed_dict=feed)
