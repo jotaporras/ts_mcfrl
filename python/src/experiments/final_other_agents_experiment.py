@@ -28,46 +28,23 @@ if __name__ == "__main__":
             )
         )
 
-        runner_random = experiment_runner.create_random_experiment_runner(
-            num_dcs,
-            num_customers,
-            dcs_per_customer,
-            demand_mean,
-            demand_var,
-            num_commodities,
-            orders_per_day,
-            num_steps,
-        )
-        runner_dqn = experiment_runner.create_dqn_experiment_runner(
-            num_dcs,
-            num_customers,
-            dcs_per_customer,
-            demand_mean,
-            demand_var,
-            num_commodities,
-            orders_per_day,
-            num_steps,
-        )
-        runner_zero = experiment_runner.create_alwayszero_experiment_runner(
-            num_dcs,
-            num_customers,
-            dcs_per_customer,
-            demand_mean,
-            demand_var,
-            num_commodities,
-            orders_per_day,
-            num_steps,
-        )
-        runner_random.run_episodes(
-            num_steps, num_episodes, orders_per_day, experiment_name="dumb_agent"
-        )
-        runner_dqn.run_episodes(
-            num_steps, num_episodes, orders_per_day, experiment_name="dqn_agent"
-        )
-        runner_zero.run_episodes(
-            num_steps, num_episodes, orders_per_day, experiment_name="zero_agent"
-        )
-        name = f"dqn_experiment_{i}"
-        runner_dqn.run_episodes(
-            num_steps, num_episodes, orders_per_day, experiment_name=name
+        # runner_random = experiment_runner.create_random_experiment_runner(
+        #     num_dcs,
+        #     num_customers,
+        #     dcs_per_customer,
+        #     demand_mean,
+        #     demand_var,
+        #     num_commodities,
+        #     orders_per_day,
+        #     num_steps,
+        # )
+        runner_bestfit = experiment_runner.create_bestfit_experiment_runner(num_dcs, num_customers, dcs_per_customer,
+                                                                            demand_mean,
+                                                                            demand_var, num_commodities, orders_per_day,
+                                                                            num_steps)
+        # runner_random.run_episodes(
+        #     num_steps, num_episodes, orders_per_day, experiment_name=f"dumb_agent_experiment_{i}"
+        # )
+        runner_bestfit.run_episodes(
+            num_steps, num_episodes, orders_per_day, experiment_name=f"bestfit_agent_experiment_{i}"
         )
