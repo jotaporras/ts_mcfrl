@@ -1,6 +1,6 @@
 
 #import this file to run the final experiments
-
+#Tema selecto experiments
 #PARAMETER MATRIX FROM EXCEL
 dcs_list = [3, 3, 5, 10, 15]
 num_commodities_list = [5, 5, 5, 5, 5]

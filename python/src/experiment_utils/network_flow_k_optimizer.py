@@ -34,7 +34,7 @@ def optimize(state):
     # Generate ortools.
     total_cost = 0.0
     for k in range(network.num_commodities): #TODO one indexed commodities?
-        k_cost,tm = optimize_commodity(state, extended_network, k, extended_nodes, arcs, current_t,inv_shape)
+        k_cost,tm,all_movements = optimize_commodity(state, extended_network, k, extended_nodes, arcs, current_t,inv_shape)
         total_cost += k_cost
         transport_matrix += tm
 
@@ -43,7 +43,7 @@ def optimize(state):
         print("Total transportation movements: ")
         print(transport_matrix)
 
-    return total_cost,transport_matrix
+    return total_cost,transport_matrix,all_movements
 
 def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t,inventory_shape,inf_capacity=9000000):
     mcf = pywrapgraph.SimpleMinCostFlow()
@@ -92,12 +92,17 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
     #print(f"elapsed {round_to_1(elapsed_ms / 1000)}s")
 
     transport_movements = np.zeros(inventory_shape)
+    all_movements = []
     if status == mcf.OPTIMAL:
         #print("\nFlows: ")
         for ai in range(mcf.NumArcs()):
             tail = mcf.Tail(ai)
             head = mcf.Head(ai)
             a = mcfarcs[(tail, head)]
+
+            # Accumulate all movements occurring at current_t
+            if a.commodity==k and mcf.Flow(ai) > 0 and a.head.time==current_t:
+                all_movements.append((a,mcf.Flow(ai)))
 
             #print(f"{a.name} = {mcf.Flow(ai)}",end="")
             if a.commodity==k and a.transportation_arc() and mcf.Flow(ai)>0 and a.head.time==current_t:
@@ -118,7 +123,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
         #print("Executing an inventory transport: ")
         #print(transport_movements)
 
-    return mcf.OptimalCost(),transport_movements
+    return mcf.OptimalCost(),transport_movements, all_movements
 
 
 # MinCostFlowBase_BAD_COST_RANGE = 6

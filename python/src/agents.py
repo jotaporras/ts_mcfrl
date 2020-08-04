@@ -10,7 +10,7 @@ from shipping_allocation.envs.network_flow_env import ActualOrderGenerator, Naiv
 from network.PhysicalNetwork import PhysicalNetwork
 
 tf.disable_v2_behavior()
-
+DEBUG=False
 class Agent:
     def __init__(self, env):
         self.is_discrete = \
@@ -67,17 +67,53 @@ class BestFitAgent(Agent):
         order = state['open'][0]
         customer = order.customer
         cid = self.network.num_dcs-customer.node_id
-        cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[0]
+        cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[:,0]
         allowed_dc_invs = inventory[cust_dcs,:]
         demand = order.demand
         remaining  = np.sum(allowed_dc_invs-demand,axis=1)
         chosen_dc_index= np.argmax(remaining)
         chosen_dc_id = cust_dcs[chosen_dc_index]
 
-        return chosen_dc_id#todo test thbis.
+        if DEBUG:
+            print("Bestfit chose: ", chosen_dc_id)
+            print("Inventories: ", inventory)
+            print("Allowed DCs:", cust_dcs)
+            print("Chose allowed DC:",self.network.dcs_per_customer_array[cid,chosen_dc_id] == 1)
+
+        return chosen_dc_id#todo test this.
 
     def train(self, experience):
         pass #do nothing
+
+
+class RandomValid(Agent):
+    """The world's least screwup random agent!"""
+    env: ShippingFacilityEnvironment
+    network: PhysicalNetwork
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+        self.network = env.environment_parameters.network
+
+    def get_action(self, state):
+        inventory = state['inventory']
+        order = state['open'][0]
+        customer = order.customer
+        cid = self.network.num_dcs - customer.node_id
+        cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[:,0]
+        chosen_dc_id = np.random.choice(cust_dcs)
+
+        if DEBUG:
+            print("RandomValid chose: ", chosen_dc_id)
+            print("Inventories: ", inventory)
+            print("Allowed DCs:", cust_dcs)
+            print("Chose allowed DC:", self.network.dcs_per_customer_array[cid, chosen_dc_id] == 1)
+
+        return chosen_dc_id  # todo test this.
+
+    def train(self, experience):
+        pass  # do nothing
 
 
 class QNAgent(Agent):

@@ -1,3 +1,5 @@
+from multiprocessing import Pool
+
 from shipping_allocation.envs.network_flow_env import (
     ActualOrderGenerator,
     NaiveInventoryGenerator,
@@ -7,26 +9,28 @@ from shipping_allocation.envs.network_flow_env import (
 
 from gym.vector.utils import spaces
 
-from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent
+from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent, RandomValid
+from experiment_utils import report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
+DEBUG=True
 
 class ExperimentRunner:
     environment_parameters: EnvironmentParameters
     agent: Agent
 
-    def __init__(self, order_generator, inventory_generator, agent, env: ShippingFacilityEnvironment):
+    def __init__(self, order_generator, inventory_generator, agent, env: ShippingFacilityEnvironment, experiment_name=""):
         self.order_generator = order_generator
         self.inventory_generator = inventory_generator
         self.agent = agent
         self.environment_parameters = env.environment_parameters
         self.physical_network = self.environment_parameters.network
         self.env = env
+        self.experiment_name = experiment_name
 
 
-    def run_episode(self):
-
+    def run_episode(self,ep):
         state = self.env.reset()
         reward = 0
         done = False
@@ -35,6 +39,7 @@ class ExperimentRunner:
         self.env.render()
         actions = []
         episode_rewards = []
+        info={}
         # demands_per_k = np.zeros((num_commodities,num_steps))
         # inventory_at_t = np.zeros((num_commodities,num_steps)) #todo llenar estos eventualmente
         while not done:
@@ -58,10 +63,18 @@ class ExperimentRunner:
 
             if done:
                 print("===========Environment says we are DONE ===========")
+                if self.experiment_name != "":
+                    print("Writing costs to CSV")
+                    report_generator.write_experiment_reports(info, self.experiment_name+f"/ep_{ep}")# todo consider writing only once instead of each ep.
 
-        return actions, episode_rewards
+        if DEBUG:
+            print("Episode done, rewards per step: ", episode_rewards)
+            print("Episode done, average reward per order: ", sum(episode_rewards)/len(state['fixed']))
 
-    def run_episodes(self,num_steps,num_episodes,orders_per_day,experiment_name):
+        return actions, episode_rewards, info
+
+    def run_episodes(self,num_steps,num_episodes,orders_per_day, experiment_name):
+        self.experiment_name=experiment_name #hotfix
         total_rewards = []
         average_rewards = []
         total_actions = np.zeros(num_steps * orders_per_day)
@@ -69,7 +82,7 @@ class ExperimentRunner:
         for i in range(num_episodes):
             print("\n\nRunning episode: ",i)
             start_time = time.process_time()
-            actions, episode_rewards = self.run_episode()
+            actions, episode_rewards, info = self.run_episode(i)
             end_time = time.process_time()
 
             total_rewards.append(sum(episode_rewards))
@@ -97,6 +110,12 @@ class ExperimentRunner:
         rewards_df.to_csv(base + "/rewards.csv")
         actions_df.to_csv(base + "/actions.csv")
         print("done")
+        if DEBUG:
+            print("Experiment done, total rewards: ",total_rewards)
+            print("Sum total rewards: ",sum(total_rewards))
+            print("Total fixed orders",)
+            print("Elapsed", elapsed)
+            print("Total elapsed",sum(elapsed))
 
 
 def create_random_experiment_runner(num_dcs,
@@ -235,7 +254,33 @@ def create_bestfit_experiment_runner(num_dcs, num_customers, dcs_per_customer, d
     env = ShippingFacilityEnvironment(environment_parameters)
     agent = BestFitAgent(env)
 
-    return ExperimentRunner(order_generator, generator, agent, env)
+    return ExperimentRunner(order_generator, generator, agent, env, experiment_name="bestfit_validation")
+
+
+
+
+
+def create_randomvalid_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean, demand_var, num_commodities,
+                                     orders_per_day, num_steps):
+    physical_network = PhysicalNetwork(
+        num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+    )
+    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+    generator = DirichletInventoryGenerator(physical_network)
+
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
+    )
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = RandomValid(env)
+
+    return ExperimentRunner(order_generator, generator, agent, env, experiment_name="randomvalid_validation")
 
 def run_with_params(
     num_dcs,

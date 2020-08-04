@@ -26,8 +26,14 @@ class Arc:
         self.commodity = commodity
         self.name = name
 
-    def transportation_arc(self)->bool:
-        return self.tail.kind=="DC"and self.head.kind=="DC" and  self.tail.location.node_id != self.head.location.node_id
+    def transportation_arc(self) -> bool:
+        return self.tail.kind == "DC" and self.head.kind == "DC" and self.tail.location.node_id != self.head.location.node_id
+
+    def inventory_arc(self) -> bool:
+        return self.tail.kind == "DC" and self.head.kind == "DC" and self.tail.location.node_id == self.head.location.node_id
+
+    def to_customer_arc(self)->bool:
+        return self.tail.kind=="DC"and self.head.kind=="C"
 
     def __repr__(self):
         # return f"Arc(arc_id={self.arc_id}, tail={self.tail}, head={self.head}, cost={self.cost}, capacity={self.capacity}, commodity={self.commodity}, name={self.name})"

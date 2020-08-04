@@ -14,7 +14,7 @@ import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 
 #Custome
-from experiment_utils import network_flow_k_optimizer
+from experiment_utils import network_flow_k_optimizer, report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 from locations.Order import Order
 DEBUG=False
@@ -60,6 +60,7 @@ class ShippingFacilityEnvironment(gym.Env):
         super(ShippingFacilityEnvironment, self).__init__()
 
         self.environment_parameters = environment_parameters
+        self.all_movements_history = []
         self.fixed_orders = []  # Orders already fixed for delivery
         self.open_orders = []  # Orders not yet decided upon.
         self.current_state = {}
@@ -77,12 +78,15 @@ class ShippingFacilityEnvironment(gym.Env):
         )  # Matrix of inventory for each dc-k.
         self.transports_acc = np.zeros(self.inventory.shape)
 
-
         #obs spec
         dcs = self.environment_parameters.network.num_dcs
         commodities = self.environment_parameters.network.num_commodities
         shape = (1,dcs * commodities + commodities)
         self.observation_space = spaces.Box(0, 1000000, shape=shape)
+
+        # Debug vars
+        self.approx_transport_mvmt_list = []
+        self.total_costs = []
 
         print("Calling init on the ShippingFacilityEnvironment")
 
@@ -109,7 +113,15 @@ class ShippingFacilityEnvironment(gym.Env):
         self.open_orders = self.open_orders[1:]
         self.current_state['open'] = self.open_orders #TODO cleanup state update
 
-        cost,transports = self._run_simulation()
+        cost, transports, all_movements = self._run_simulation()
+
+        # Adding approximate transport cost by taking transport matrices where transports are greater than zero. Assumes Customer transport == DC transport cost.
+        self.all_movements_history.append(all_movements)
+        self.approximate_transport_cost = transports[np.where(transports > 0)].sum() * self.environment_parameters.network.default_customer_transport_cost
+        self.total_costs.append(cost)
+        self.approx_transport_mvmt_list.append(self.approximate_transport_cost)
+        #print("self.approx_transport_cost", self.approx_transport_cost)
+        #print("Total transports (customer+dc) transports")
 
         self.transports_acc = transports
 
@@ -121,17 +133,43 @@ class ShippingFacilityEnvironment(gym.Env):
         # Done when the number of timestep generations is the number of episodes.
         done = self.current_t == self.environment_parameters.num_steps + 1
 
+        if done:
+            # Appending final values to info object.
+            final_ords:List[Order] = self.current_state['fixed']
+
+            movement_detail_report = report_generator.generate_movement_detail_report(self.all_movements_history)
+            summary_movement_report = report_generator.generate_summary_movement_report(movement_detail_report)
+
+            served_demand = sum([sum(o.demand) for o in final_ords])
+            approximate_to_customer_cost = served_demand*self.environment_parameters.network.default_customer_transport_cost
+            info = {
+                'final_orders': final_ords, # The orders, with their final shipping point destinations.
+                'total_costs': self.total_costs, # Total costs per stepwise optimization
+                'approximate_transport_movement_list': self.total_costs, # Total costs per stepwise optimization
+                'approximate_to_customer_cost': approximate_to_customer_cost, # Approximate cost of shipping to customers: total demand multiplied by the default customer transport cost. If the cost is different, this is worthless.
+                'movement_detail_report': movement_detail_report, # DataFrame with all the movements that were made.
+                'summary_movement_report': summary_movement_report  # DataFrame with movements summary per day.
+            }
+            print("==== Copy and paste this into a notebook ====")
+            print("Total costs per stepwise optimization", self.total_costs)
+            print("Total cost list associated with all transport movements", self.approx_transport_mvmt_list) #approximate because they're intermixed.
+            print("Removing approx to customer cost", sum(self.approx_transport_mvmt_list)-approximate_to_customer_cost)
+        else:
+            info={}# not done yet. #to do consider yielding this on every step for rendering purposes.
         # print(f"Stepping with action {action}")
         # obs = random.randint(0, 10)
         # reward = random.randint(0, 100)
         # done = np.random.choice([True, False])
-        return copy.copy(self.current_state), reward, done, {}
+        return copy.copy(self.current_state), reward, done, info
 
     # def observation_space(self):
     #     dcs = self.environment_parameters.network.num_dcs
     #     commodities = self.environment_parameters.network.num_commodities
     #     shape = (dcs * commodities+num_commodities, 1)
     #     return spaces.Box(0,1000000,shape=shape)
+
+    def generate_final_statistics(self):
+        pass
 
     def reset(self):
         # Reset the state of the environment to an initial state
@@ -144,30 +182,38 @@ class ShippingFacilityEnvironment(gym.Env):
                 self.environment_parameters.network.num_commodities,
             )
         )  # Matrix of inventory for each dc-k.
+        self.all_movements_history = []
         self.fixed_orders = []  # Orders already fixed for delivery
         self.open_orders = []
+
         self.current_t = 0
         self.current_state = self._next_observation()
+
+        #debug var
+        self.approx_transport_mvmt_list = []
+        self.total_costs = []
+
 
         return copy.copy(self.current_state)
 
     def render(self, mode="human", close=False):
+        pass #todo refactor this, it's too much noise
         # Render the environment to the screen
-        if mode == "human" and DEBUG:
-            print("\n\n======== RENDERING ======")
-            print("Current t",self.current_t)
-            print(f"fixed_orders ({len(self.fixed_orders)})", self.fixed_orders)
-            print(
-                f"Demand fixed orders: {sum(map(lambda o:o.demand, self.fixed_orders))}"
-            )  # TODO Do for all commodities
-            print(f"open_orders ({len(self.open_orders)})", self.open_orders)
-            print(
-                f"Demand open orders: {sum(map(lambda o:o.demand, self.open_orders))}"
-            )  # TODO Do for all commodities
-            print("inventory\n", self.inventory)
-            print("Current State:")
-            self._render_state()
-            print("======== END RENDERING ======\n\n")
+        # if mode == "human" and DEBUG:
+        #     print("\n\n======== RENDERING ======")
+        #     print("Current t",self.current_t)
+        #     print(f"fixed_orders ({len(self.fixed_orders)})", self.fixed_orders)
+        #     print(
+        #         f"Demand fixed orders: {sum(map(lambda o:o.demand, self.fixed_orders))}"
+        #     )  # TODO Do for all commodities
+        #     print(f"open_orders ({len(self.open_orders)})", self.open_orders)
+        #     print(
+        #         f"Demand open orders: {sum(map(lambda o:o.demand, self.open_orders))}"
+        #     )  # TODO Do for all commodities
+        #     print("inventory\n", self.inventory)
+        #     print("Current State:")
+        #     self._render_state()
+        #     print("======== END RENDERING ======\n\n")
 
     def _render_state(self):
         if DEBUG:

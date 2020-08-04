@@ -4,7 +4,6 @@ import tensorflow.compat.v1 as tf
 from experiments.experiment_params import *
 
 if __name__ == "__main__":
-
     for i in reversed(list(range(num_experiments))):
         print("Running experiment id ", i)
         # parameters:

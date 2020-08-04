@@ -6,7 +6,7 @@ from network.Arc import Arc
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
-DEBUG=True
+DEBUG=False
 
 class ExtendedNetwork:
     """
@@ -161,6 +161,9 @@ class ExtendedNetwork:
                     head = self.location_time_nodemap[(order.customer.node_id, order.due_timestep)][k]
                     tail = self.location_time_nodemap[(order.shipping_point.node_id, order.due_timestep)][k]#todo maybe modify to timestep-1
                     valid_connection = network.is_valid_arc(order.shipping_point.node_id,order.customer.node_id)
+                    if DEBUG:
+                        if not valid_connection:
+                            print("Invalid connection found for this arc, setting BIG M",head,tail,"on order",order,'commodity:',k)
                     cost = network.default_customer_transport_cost if valid_connection else network.big_m_cost
                     # if not valid_connection:
                     #     print("Order ",order," is scheduled from an invalid shipping point, with a cost",cost)
