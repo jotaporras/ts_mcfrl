@@ -8,15 +8,15 @@ from experiment_utils import experiment_runner
 # for i in reversed(list(range(num_experiments))):
 # print("Running experiment id ", i)
 # parameters:
-num_dcs = 4
-num_customers = 200  #scale up to 200
-num_commodities = 50  # scale up to 50
-orders_per_day = int(num_customers * 0.025) #was going to be 0.1 but ran too slow.
+num_dcs = 3
+num_customers = 100  #scale up to 200
+num_commodities = 35  # scale up to 50
+orders_per_day = int(num_customers * 0.05) #was going to be 0.1 but ran too slow.
 # orders_per_day = 2
 dcs_per_customer = 2
 demand_mean = 500
 demand_var = 150
-num_steps = 90  # 3 months ish
+num_steps = 30  # 1 month
 num_episodes = 1
 
 
