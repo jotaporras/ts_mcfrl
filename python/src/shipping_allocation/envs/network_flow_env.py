@@ -68,8 +68,6 @@ class ShippingFacilityEnvironment(gym.Env):
         self.action_space = spaces.Discrete(
             self.environment_parameters.network.num_dcs
         )  # The action space is choosing a DC for the current order.
-        self.observation_space = spaces.Box(np.zeros(self.environment_parameters.network.num_dcs), np.ones(self.environment_parameters.network.num_dcs)) #El 4 está mal, me parece que debería ser t
-        self.observation_space = spaces.Discrete(3) #Momentanio, sólo para la implementación del agente
         self.inventory = np.zeros(
             (
                 self.environment_parameters.network.num_dcs,
@@ -78,11 +76,16 @@ class ShippingFacilityEnvironment(gym.Env):
         )  # Matrix of inventory for each dc-k.
         self.transports_acc = np.zeros(self.inventory.shape)
 
-        #obs spec
+        #=====OBSERVATION SPEC=======
+        # Current observation spec:
+        # inventory per dc plus one K size vector of the current order
+        # + one K size vector of other demand in horizon
+        # + 4 metadata neurons
         dcs = self.environment_parameters.network.num_dcs
         commodities = self.environment_parameters.network.num_commodities
-        shape = (1,dcs * commodities + commodities)
+        shape = (1, dcs * commodities + 2*commodities + 4)
         self.observation_space = spaces.Box(0, 1000000, shape=shape)
+        # =====OBSERVATION SPEC=======
 
         # Debug vars
         self.approx_transport_mvmt_list = []

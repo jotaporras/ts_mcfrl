@@ -14,7 +14,7 @@ class Order:
     """
     shipping_point: Node
     customer: Node
-    demand: np.array
+    demand: np.array# (k,1)
     due_timestep: int
 
     def __init__(self, demand: np.array, shipping_point, customer, delivery_time, name):

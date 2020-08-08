@@ -1,4 +1,6 @@
 import random as rnd
+from typing import List
+
 from locations.Order import Order
 import numpy as np
 
@@ -47,5 +49,13 @@ class Orders:
         # Generate demand
         demand = np.random.multivariate_normal([200,100,50],np.eye(3)*demand_var,size=(10,5)) #(num_customers,commodities,orders)
 
+# Vector with total demand per commodity for each DC in horizon for fixed orders
+def summarize_order_demand(orders: List[Order], start:int, end:int,commodity_shape)->np.array:
+    if len(orders)!=0:
+        result = np.sum([o.demand for o in orders if start <= o.due_timestep <= end], axis=0)
+        return result.reshape(commodity_shape)
+    else:
+        return np.zeros(commodity_shape)
 
-        
+
+

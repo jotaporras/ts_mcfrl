@@ -1,12 +1,16 @@
 import random
 
 # Environment and agent
+from typing import List
+
 import gym
 import numpy as np
 import tensorflow.compat.v1 as tf
 from shipping_allocation.envs.network_flow_env import ActualOrderGenerator, NaiveInventoryGenerator, EnvironmentParameters, \
     ShippingFacilityEnvironment
 
+from locations.Order import Order
+from locations import Orders
 from network.PhysicalNetwork import PhysicalNetwork
 
 tf.disable_v2_behavior()
@@ -119,7 +123,7 @@ class RandomValid(Agent):
 class QNAgent(Agent):
     def __init__(self, env, discount_rate=0.9, learning_rate=0.015):
         super().__init__(env)
-        self.state_size = env.observation_space.shape[1]+4
+        self.state_size = env.observation_space.shape[1]
         self.action_space_size = env.action_space.n
         print("State size:", self.state_size)
 
@@ -209,18 +213,31 @@ class QNAgent(Agent):
     #     "current_t": self.current_t,
     # }
     def convert_state_to_vector(self, state):
+        # Inventory stack
         inventory = state['inventory']
         stacked_inventory = inventory.reshape(-1,1)
+
+        # latest open order demand
         latest_open_order = state['open'][0]
-        reshaped_demand = latest_open_order.demand.reshape(-1,1)
+        reshaped_demand = latest_open_order.demand.reshape(-1,1)*-1
+
+        # Calculating stacked demand in horizon.
+        fixed_orders: List[Order] = state['fixed']
+        current_t = state['current_t']
+        network: PhysicalNetwork = state['physical_network']
+        horizon = current_t + network.planning_horizon - 1
+        stacked_demand_in_horizon = Orders.summarize_order_demand(fixed_orders, current_t, horizon, reshaped_demand.shape)*-1
 
         #4 extra metadata neurons.
         ship_id = latest_open_order.shipping_point.node_id
         customer_id = latest_open_order.customer.node_id
         current_t = state['current_t']
         delivery_t = latest_open_order.due_timestep
-        metadata = np.array([[ship_id,customer_id,current_t,delivery_t]]).transpose()
-        state_vector = np.concatenate([stacked_inventory, reshaped_demand,metadata]) #TODO add to this the customer order id.
+        metadata = np.array([[ship_id, customer_id, current_t, delivery_t]]).transpose()
+
+        # State vector
+        state_vector = np.concatenate([stacked_inventory, reshaped_demand, stacked_demand_in_horizon, metadata])
+
         return state_vector.transpose() #np.array((1,num_dcs*num_commodities + num_commodities))
 
 
@@ -228,48 +245,48 @@ class QNAgent(Agent):
         self.sess.close()
 
 
-if __name__ == "__main__":
-    num_dcs = 5
-    num_customers = 2
-    num_commodities = 3
-    orders_per_day = 1
-    dcs_per_customer = 2
-    demand_mean = 100
-    demand_var = 20
-
-    num_episodes = 100
-    num_steps = 30
-
-    physical_network = PhysicalNetwork(num_dcs, num_customers, dcs_per_customer,demand_mean,demand_var,num_commodities)
-    # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
-    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
-    generator = NaiveInventoryGenerator()
-    environment_parameters = EnvironmentParameters(
-        physical_network, num_episodes, order_generator, generator
-    )
-
-    env = ShippingFacilityEnvironment(environment_parameters)
-    agent = QNAgent(env)
-
-    state = env.reset()
-    reward = 0
-    done = False
-    print("=========== starting episode loop ===========")
-    print("Initial environment: ")
-    env.render()
-    while not done:
-        action = agent.get_action(state)
-        print(f"Agent is taking action: {action}")
-        # the agent observes the first state and chooses an action
-        # environment steps with the agent's action and returns new state and reward
-        next_state, reward, done, info = env.step(action)
-        print(f"Got reward {reward} done {done}")
-
-        agent.train((state,action,next_state,reward,done))
-
-        state = next_state
-        # Render the current state of the environment
-        env.render()
-
-        if done:
-            print("===========Environment says we are DONE ===========")
+# if __name__ == "__main__":
+#     num_dcs = 5
+#     num_customers = 2
+#     num_commodities = 3
+#     orders_per_day = 1
+#     dcs_per_customer = 2
+#     demand_mean = 100
+#     demand_var = 20
+#
+#     num_episodes = 100
+#     num_steps = 30
+#
+#     physical_network = PhysicalNetwork(num_dcs, num_customers, dcs_per_customer,demand_mean,demand_var,num_commodities)
+#     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
+#     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+#     generator = NaiveInventoryGenerator()
+#     environment_parameters = EnvironmentParameters(
+#         physical_network, num_episodes, order_generator, generator
+#     )
+#
+#     env = ShippingFacilityEnvironment(environment_parameters)
+#     agent = QNAgent(env)
+#
+#     state = env.reset()
+#     reward = 0
+#     done = False
+#     print("=========== starting episode loop ===========")
+#     print("Initial environment: ")
+#     env.render()
+#     while not done:
+#         action = agent.get_action(state)
+#         print(f"Agent is taking action: {action}")
+#         # the agent observes the first state and chooses an action
+#         # environment steps with the agent's action and returns new state and reward
+#         next_state, reward, done, info = env.step(action)
+#         print(f"Got reward {reward} done {done}")
+#
+#         agent.train((state,action,next_state,reward,done))
+#
+#         state = next_state
+#         # Render the current state of the environment
+#         env.render()
+#
+#         if done:
+#             print("===========Environment says we are DONE ===========")

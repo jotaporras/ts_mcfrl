@@ -1,5 +1,21 @@
 from experiment_utils import experiment_runner
 
+def validate_dqn():
+    num_dcs = 3
+    num_customers = 2
+    num_commodities = 4
+    orders_per_day = 2
+    dcs_per_customer = 3
+    demand_mean = 100
+    demand_var = 20
+
+    num_steps = 50
+    num_episodes = 5
+
+    runner_dqn = experiment_runner.create_dqn_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean,
+                                                                demand_var, num_commodities, orders_per_day, num_steps)
+    runner_dqn.run_episodes(num_steps, num_episodes, orders_per_day, experiment_name='dqn_agent_unittest')
+
 def small_validation_experiments():
     num_dcs = 3
     num_customers = 2
@@ -66,5 +82,6 @@ def run_large_experiment():
     #runner_bestfit.run_episodes(num_steps, num_episodes, orders_per_day, experiment_name='bestfit_agent') #todo aqui quedé testear la red grande.
 
 if __name__ == "__main__":
-    small_validation_experiments()
+    validate_dqn()
+    #small_validation_experiments()
     #run_large_experiment()
