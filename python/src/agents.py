@@ -146,8 +146,7 @@ class QNAgent(Agent):
         # Ya resuelve el tamaño de las capaz intermedias
         self.l1=tf.layers.dense(self.state_in,units=self.action_space_size*10,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
         self.l2=tf.layers.dense(self.l1,units=self.action_space_size*5,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
-        self.l3=tf.layers.dense(self.l2,units=self.action_space_size*2,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
-        self.q_state = tf.layers.dense(self.l3, units=self.action_space_size, name="q_table")
+        self.q_state = tf.layers.dense(self.l2, units=self.action_space_size, name="q_table")
 
         #self.q_state = tf.layers.dense(self.state_in, units=self.action_space_size, name="q_table")
         self.q_action = tf.reduce_sum(tf.multiply(self.q_state, self.action),
