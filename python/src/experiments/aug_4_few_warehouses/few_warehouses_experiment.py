@@ -16,8 +16,8 @@ orders_per_day = int(num_customers * 0.05) #was going to be 0.1 but ran too slow
 dcs_per_customer = 2
 demand_mean = 500
 demand_var = 150
-num_steps = 30  # 1 month
-num_episodes = 1
+num_steps = 10  # 1 month
+num_episodes = 500
 
 
 def run_bestfit():
