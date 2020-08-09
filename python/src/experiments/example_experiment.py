@@ -1,7 +1,7 @@
 from experiment_utils import experiment_runner
 
 def validate_dqn():
-    num_dcs = 3
+    num_dcs = 10
     num_customers = 2
     num_commodities = 4
     orders_per_day = 2
@@ -10,7 +10,7 @@ def validate_dqn():
     demand_var = 20
 
     num_steps = 50
-    num_episodes = 5
+    num_episodes = 1000
 
     runner_dqn = experiment_runner.create_dqn_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean,
                                                                 demand_var, num_commodities, orders_per_day, num_steps)

@@ -69,6 +69,7 @@ class ExperimentRunner:
 
         if DEBUG:
             print("Episode done, rewards per step: ", episode_rewards)
+            print("Episode done, average reward per step: ", sum(episode_rewards)/self.environment_parameters.num_steps)
             print("Episode done, average reward per order: ", sum(episode_rewards)/len(state['fixed']))
 
         return actions, episode_rewards, info

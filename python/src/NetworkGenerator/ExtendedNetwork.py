@@ -6,7 +6,7 @@ from network.Arc import Arc
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
-DEBUG=False
+DEBUG=True
 
 class ExtendedNetwork:
     """
@@ -163,7 +163,7 @@ class ExtendedNetwork:
                     valid_connection = network.is_valid_arc(order.shipping_point.node_id,order.customer.node_id)
                     if DEBUG:
                         if not valid_connection:
-                            print("Invalid connection found for this arc, setting BIG M",head,tail,"on order",order,'commodity:',k)
+                            print("Invalid connection found for this arc, setting BIG M",head,tail,"on order",order,'commodity:',k) # todo check this maybe make clearer.
                     cost = network.default_customer_transport_cost if valid_connection else network.big_m_cost
                     # if not valid_connection:
                     #     print("Order ",order," is scheduled from an invalid shipping point, with a cost",cost)

@@ -46,13 +46,15 @@ class PhysicalNetwork:
 
     def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=5):
         print("Calling physical network gen")
+        # ======= HARDWIRED CONSTANTS RELATED TO TIME AND COSTS =====
         self.default_storage_cost = 1 #TODO HARDWIRED CONSTANTS
         self.default_delivery_time = 3 #TODO HARDWIRED CONSTANTS
         #self.default_dc_transport_cost = 10 #TODO HARDWIRED CONSTANTS
-        self.default_dc_transport_cost = 15 #TODO HARDWIRED CONSTANTS
-        self.default_customer_transport_cost = 15 #TODO HARDWIRED CONSTANTS
+        self.default_dc_transport_cost = 10 #TODO HARDWIRED CONSTANTS
+        self.default_customer_transport_cost = 10 #TODO HARDWIRED CONSTANTS
         self.default_inf_capacity = 999999
-        self.big_m_cost = self.default_customer_transport_cost*100000
+        #self.big_m_cost = self.default_customer_transport_cost*100000
+        self.big_m_cost = self.default_customer_transport_cost*100
         self.demand_var = demand_var
         self.demand_mean = demand_mean
         self.planning_horizon = planning_horizon
