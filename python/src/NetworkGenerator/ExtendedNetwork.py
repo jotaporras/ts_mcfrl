@@ -6,7 +6,7 @@ from network.Arc import Arc
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
 
-DEBUG=True
+DEBUG=False
 
 class ExtendedNetwork:
     """
