@@ -144,8 +144,9 @@ class QNAgent(Agent):
         self.action = tf.transpose(tf.one_hot(self.action_in, depth=self.action_space_size))
 
         # Ya resuelve el tamaño de las capaz intermedias
-        self.l1=tf.layers.dense(self.state_in,units=self.action_space_size*10,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
-        self.l2=tf.layers.dense(self.l1,units=self.action_space_size*5,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
+        self.l1=tf.layers.dense(self.state_in,units=500,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
+        self.l2=tf.layers.dense(self.l1,units=250,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
+        self.l3=tf.layers.dense(self.l1,units=25,activation=tf.nn.relu,kernel_initializer=tf.initializers.glorot_normal())
         self.q_state = tf.layers.dense(self.l2, units=self.action_space_size, name="q_table") # (actions*5,actions)
 
         #self.q_state = tf.layers.dense(self.state_in, units=self.action_space_size, name="q_table")
@@ -245,6 +246,25 @@ class QNAgent(Agent):
 
     def __del__(self):
         self.sess.close()
+
+class DoNothingAgent(Agent):
+    """The world's least screwup random agent!"""
+    env: ShippingFacilityEnvironment
+    network: PhysicalNetwork
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+        self.network = env.environment_parameters.network
+
+    def get_action(self, state):
+        order = state['open'][0]
+        dc = order.shipping_point
+
+        return dc.node_id
+
+    def train(self, experience):
+        pass  # do nothing
 
 
 # if __name__ == "__main__":

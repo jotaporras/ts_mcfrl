@@ -7,8 +7,6 @@ from network.Arc import Arc
 import numpy as np
 import random as rd
 
-print("Network imported")
-
 #For debugging, mostly
 class Customer:
     def __init__(self, customer_id, allowed_dc_indices):

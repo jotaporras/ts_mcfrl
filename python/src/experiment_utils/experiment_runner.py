@@ -9,7 +9,7 @@ from shipping_allocation.envs.network_flow_env import (
 
 from gym.vector.utils import spaces
 
-from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent, RandomValid
+from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent, RandomValid, DoNothingAgent
 from experiment_utils import report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
@@ -280,6 +280,28 @@ def create_randomvalid_experiment_runner(num_dcs, num_customers, dcs_per_custome
 
     env = ShippingFacilityEnvironment(environment_parameters)
     agent = RandomValid(env)
+
+    return ExperimentRunner(order_generator, generator, agent, env, experiment_name="randomvalid_validation")
+
+def create_donothing_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean, demand_var, num_commodities,
+                                     orders_per_day, num_steps):
+    physical_network = PhysicalNetwork(
+        num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+    )
+    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+    generator = DirichletInventoryGenerator(physical_network)
+
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
+    )
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = DoNothingAgent(env)
 
     return ExperimentRunner(order_generator, generator, agent, env, experiment_name="randomvalid_validation")
 

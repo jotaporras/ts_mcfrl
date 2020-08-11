@@ -1,6 +1,9 @@
 from multiprocessing.context import Process
 
 from experiment_utils import experiment_runner
+import numpy as np
+import tensorflow.compat.v1 as tf
+import random
 
 '''
     Experiment with only a few warehouses but a lot of customers, which would be a more realistic scenario.
@@ -17,7 +20,8 @@ dcs_per_customer = 2
 demand_mean = 500
 demand_var = 150
 num_steps = 10  # 10 days
-num_episodes = 500
+#num_episodes = 500
+num_episodes = 1000 #now with more eps ✨
 
 
 def run_bestfit():
@@ -27,7 +31,7 @@ def run_bestfit():
                                                                         demand_var, num_commodities, orders_per_day,
                                                                         num_steps)
     runner_bestfit.run_episodes(
-        num_steps, num_episodes, orders_per_day, experiment_name=f"bestfit_few_warehouses"
+        num_steps, num_episodes, orders_per_day, experiment_name=f"bestfit_few_warehouses_v2"
     )
     print("===DONE BESTFIT===")
 
@@ -45,7 +49,7 @@ def run_random():
     )
 
     runner_random.run_episodes(
-        num_steps, num_episodes, orders_per_day, experiment_name=f"dumb_few_warehouses"
+        num_steps, num_episodes, orders_per_day, experiment_name=f"dumb_few_warehouses_v2"
     )
     print("***DONE RANDOM***")
 
@@ -62,11 +66,17 @@ def run_dqn():
         num_steps,
     )
     runner_dqn.run_episodes(
-        num_steps, num_episodes, orders_per_day,  experiment_name=f"dqn_few_warehouses"
+        num_steps, num_episodes, orders_per_day,  experiment_name=f"dqn2_few_warehouses_v2"
     )
     print("!!!DONE DQN!!!")
 
 if __name__ == "__main__":
+    # set seeds for reproducibility
+    random.seed(0) # not sure if actually used
+    np.random.seed(0)
+    tf.set_random_seed(0)
+
+
     #====parameters===== (4, 100, 2, 500, 150, 50, 10, 90) Total elapsed 173.465825
 
     print("====parameters=====")
@@ -87,12 +97,12 @@ if __name__ == "__main__":
     pr = Process(target=run_random, args=())
     pdqn = Process(target=run_dqn, args=())
 
-    pbf.start()
-    pr.start()
+    # pbf.start()
+    # pr.start()
     pdqn.start()
 
-    pbf.join()
-    pr.join()
+    # pbf.join()
+    # pr.join()
     pdqn.join()
     print("All processes done")
 

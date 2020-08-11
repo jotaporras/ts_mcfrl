@@ -153,10 +153,10 @@ class ShippingFacilityEnvironment(gym.Env):
                 'movement_detail_report': movement_detail_report, # DataFrame with all the movements that were made.
                 'summary_movement_report': summary_movement_report  # DataFrame with movements summary per day.
             }
-            print("==== Copy and paste this into a notebook ====")
-            print("Total costs per stepwise optimization", self.total_costs)
-            print("Total cost list associated with all transport movements", self.approx_transport_mvmt_list) #approximate because they're intermixed.
-            print("Removing approx to customer cost", sum(self.approx_transport_mvmt_list)-approximate_to_customer_cost)
+            # print("==== Copy and paste this into a notebook ====")
+            # print("Total costs per stepwise optimization", self.total_costs)
+            # print("Total cost list associated with all transport movements", self.approx_transport_mvmt_list) #approximate because they're intermixed.
+            # print("Removing approx to customer cost", sum(self.approx_transport_mvmt_list)-approximate_to_customer_cost)
         else:
             info={}# not done yet. #to do consider yielding this on every step for rendering purposes.
         # print(f"Stepping with action {action}")
