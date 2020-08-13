@@ -79,6 +79,8 @@ def run_dqn():
     runner_dqn.run_episodes(
         num_steps, num_episodes, orders_per_day,  experiment_name=f"dqn2_few_warehouses_v3"
     )
+
+    runner_dqn.agent.save_weights("models/dqn2_few_warehouses_v3.h5")
     print("!!!DONE DQN!!!")
 
 def run_donothing():
@@ -119,7 +121,7 @@ if __name__ == "__main__":
             ("demand_var",demand_var),
             ("num_commodities",num_commodities),
             ("orders_per_day",orders_per_day),
-            ("num_steps",num_steps),
+            ("num_steps", num_steps),
         )
     )
 
