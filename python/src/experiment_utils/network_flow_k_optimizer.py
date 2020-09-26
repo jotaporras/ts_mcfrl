@@ -108,6 +108,9 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
             if a.commodity==k and a.transportation_arc() and mcf.Flow(ai)>0 and a.head.time==current_t:
                 transport_movements[a.tail.location.node_id,k] -= mcf.Flow(ai) #subtract from source
                 transport_movements[a.head.location.node_id, k] += mcf.Flow(ai)  #add to destination
+            if a.cost >= state['physical_network'].big_m_cost and mcf.Flow(ai)>0:
+                print("This is a Big M cost found in the optimization",a,"==>",mcf.Flow(ai))
+                print(a.tail.location,a.head.location)
             #if a.commodity==k and a.transportation_arc() and mcf.Flow(ai)>0:
                 #print("***")
                 #print(f"***This a transp arc id {a.arc_id} with flow",a,mcf.Flow(ai)) #toido aqui quede y ver bien flows.

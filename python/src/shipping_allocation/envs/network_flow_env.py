@@ -11,6 +11,9 @@ import gym
 from gym import spaces
 from gym import wrappers
 import tensorflow.compat.v1 as tf
+
+from locations import Orders
+
 tf.disable_v2_behavior()
 
 #Custome
@@ -263,13 +266,43 @@ class ShippingFacilityEnvironment(gym.Env):
                 raise Exception("THIS SHOULDNT HAPPEN!!!!! NEGATIVE INVENTORY")
         # else:
         #     self.inventory = self._generate_updated_inventory(0)
-        return {
+        generated_state = {
             "physical_network": self.environment_parameters.network,
             "inventory": self.inventory.copy(),
             "open": [copy.deepcopy(o) for o in self.open_orders],
             "fixed": [copy.deepcopy(o) for o in self.fixed_orders],
             "current_t": self.current_t
         }
+        generated_state['state_vector'] = self.convert_state_to_vector(generated_state) # todo refactor to something less nasty.
+        return generated_state
+
+    def convert_state_to_vector(self, state): # copied from first dqn agent
+        # Inventory stack
+        inventory = state['inventory']
+        stacked_inventory = inventory.reshape(-1,1)
+
+        # latest open order demand
+        latest_open_order = state['open'][0]
+        reshaped_demand = latest_open_order.demand.reshape(-1,1)*-1
+
+        # Calculating stacked demand in horizon.
+        fixed_orders: List[Order] = state['fixed']
+        current_t = state['current_t']
+        network: PhysicalNetwork = state['physical_network']
+        horizon = current_t + network.planning_horizon - 1
+        stacked_demand_in_horizon = Orders.summarize_order_demand(fixed_orders, current_t, horizon, reshaped_demand.shape)*-1
+
+        #4 extra metadata neurons.
+        ship_id = latest_open_order.shipping_point.node_id
+        customer_id = latest_open_order.customer.node_id
+        current_t = state['current_t']
+        delivery_t = latest_open_order.due_timestep
+        metadata = np.array([[ship_id, customer_id, current_t, delivery_t]]).transpose()
+
+        # State vector
+        state_vector = np.concatenate([stacked_inventory, reshaped_demand, stacked_demand_in_horizon, metadata])
+
+        return state_vector.transpose() #np.array((1,num_dcs*num_commodities + num_commodities))
 
     def _generate_orders(self) -> typing.List[Order]:
         #print(f"Calling order generator for t={self.current_t}")

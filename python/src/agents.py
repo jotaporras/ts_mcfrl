@@ -14,7 +14,7 @@ from locations import Orders
 from network.PhysicalNetwork import PhysicalNetwork
 
 tf.disable_v2_behavior()
-DEBUG=False
+DEBUG=True
 class Agent:
     def __init__(self, env):
         self.is_discrete = \
@@ -82,7 +82,16 @@ class BestFitAgent(Agent):
             print("Bestfit chose: ", chosen_dc_id)
             print("Inventories: ", inventory)
             print("Allowed DCs:", cust_dcs)
-            print("Chose allowed DC:",self.network.dcs_per_customer_array[cid,chosen_dc_id] == 1)
+
+            if self.network.dcs_per_customer_array[cid,chosen_dc_id] == 1:
+                print("Chose allowed DC:",cid,chosen_dc_index)
+            else:
+                print("Chose ILLEGAL OH NO DC:", cid, chosen_dc_index)
+            if np.argwhere(cust_dcs==chosen_dc_id).size==0:
+                print("BESTFIT CHOSE ILLEGAL MOVEMENT. THIS SHOULD NOT HAPPEN. Illegal for customer ",customer,"DC",chosen_dc_id)
+            else:
+                print("Bestfit chose the legal move",chosen_dc_id)
+
 
         return chosen_dc_id#todo test this.
 
@@ -118,7 +127,6 @@ class RandomValid(Agent):
 
     def train(self, experience):
         pass  # do nothing
-
 
 class QNAgent(Agent):
     def __init__(self, env, discount_rate=0.9, learning_rate=0.015):
@@ -262,6 +270,27 @@ class DoNothingAgent(Agent):
         dc = order.shipping_point
 
         return dc.node_id
+
+    def train(self, experience):
+        pass  # do nothing
+
+class AgentHighest(Agent):
+    """The world's debugging agent"""
+    env: ShippingFacilityEnvironment
+    network: PhysicalNetwork
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+        self.network = env.environment_parameters.network
+
+    def get_action(self, state):
+        order = state['open'][0]
+        customer = order.customer
+        cid = self.network.num_dcs - customer.node_id
+        cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[:, 0]
+
+        return cust_dcs[-1] # choose the last
 
     def train(self, experience):
         pass  # do nothing

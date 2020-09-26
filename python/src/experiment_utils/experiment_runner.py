@@ -9,7 +9,7 @@ from shipping_allocation.envs.network_flow_env import (
 
 from gym.vector.utils import spaces
 
-from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent, RandomValid, DoNothingAgent
+from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent, RandomValid, DoNothingAgent, AgentHighest
 from experiment_utils import report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 import numpy as np
@@ -78,8 +78,10 @@ class ExperimentRunner:
         self.experiment_name=experiment_name #hotfix
         total_rewards = []
         average_rewards = []
+
         total_actions = np.zeros(num_steps * orders_per_day)
         elapsed = []
+        self.display_environment()
         for i in range(num_episodes):
             print("\n\nRunning episode: ",i)
             start_time = time.process_time()
@@ -117,6 +119,17 @@ class ExperimentRunner:
             print("Total fixed orders",)
             print("Elapsed", elapsed)
             print("Total elapsed",sum(elapsed))
+
+    def display_environment(self):
+        # Print things about env, parameters and network that might be useful for reference.
+        physical_network = self.env.environment_parameters.network
+        print("\n\n")
+        print("================================================================")
+        print("================================================================")
+        print("================================================================")
+        print("===== INITIALIZING RUN WITH CURRENT ENVIRONMENT PARAMS ======")
+        print("===== DCS Per Customer Array ======")
+        print(physical_network.dcs_per_customer_array)
 
 
 def create_random_experiment_runner(num_dcs,
@@ -302,6 +315,28 @@ def create_donothing_experiment_runner(num_dcs, num_customers, dcs_per_customer,
 
     env = ShippingFacilityEnvironment(environment_parameters)
     agent = DoNothingAgent(env)
+
+    return ExperimentRunner(order_generator, generator, agent, env, experiment_name="randomvalid_validation")
+
+def create_agent_66_experiment_runner(num_dcs, num_customers, dcs_per_customer, demand_mean, demand_var, num_commodities,
+                                     orders_per_day, num_steps):
+    physical_network = PhysicalNetwork(
+        num_dcs,
+        num_customers,
+        dcs_per_customer,
+        demand_mean,
+        demand_var,
+        num_commodities,
+    )
+    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+    generator = DirichletInventoryGenerator(physical_network)
+
+    environment_parameters = EnvironmentParameters(
+        physical_network, num_steps, order_generator, generator
+    )
+
+    env = ShippingFacilityEnvironment(environment_parameters)
+    agent = AgentHighest(env)
 
     return ExperimentRunner(order_generator, generator, agent, env, experiment_name="randomvalid_validation")
 

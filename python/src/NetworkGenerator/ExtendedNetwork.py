@@ -26,24 +26,18 @@ class ExtendedNetwork:
         self.inventory = inventory
         self.fixed_orders = fixed_orders
         self.open_orders = open_orders
+        self.location_time_nodemap = {} # Map from (location,t) => Node if the node is relevant to this optimization.
 
     def ConvertToExtended(self,current_t,planning_horizon_t):
         return self.__GenerateNodes(current_t, planning_horizon_t), self.__GenerateArcs(current_t, planning_horizon_t)
 
     def __GenerateNodes(self,current_t,planning_horizon_t):
-        # Marks which node will have an initial order
-        count = 0
-        nodes_with_demand = {} #todo this map is never used.
-        self.location_time_nodemap = {}  # this map assumes one order per customer timestep. Node dictionary of (dc,t) -> [Node] * num_commodities
-        for order in self.fixed_orders:
-            if current_t <= order.due_timestep <= planning_horizon_t:
-                nodes_with_demand[str(order.customer.node_id) + "_" + str(count)] = order.demand
-                count += order.due_timestep + 1 #TODO maybe delete this???
-
         # Creates all the dcs nodes
         nodes = []
         node_id_inc = 0
         total_time = self.network.planning_horizon
+
+        self.location_time_nodemap = {}# todo verify this on mulitple calls? Does this even get called multiple times? I think it's a disposable object.
 
         num_commodities = self.network.num_commodities
         for k in range(num_commodities):
@@ -59,11 +53,11 @@ class ExtendedNetwork:
                     nodes.append(node)
 
                     #print("Adding to location time nodemap for dc: ", (dc.node_id, t))
-                    self.location_time_nodemap.setdefault((dc.node_id, t), [None] * num_commodities)[k] = node
+                    self.location_time_nodemap.setdefault((dc.node_id, t), [None] * num_commodities)[k] = node # Todo check this map after assignment.
 
                     node_id_inc += 1
 
-        # Creates all the customer nodes
+        # Creates all the customer nodes for FIXED ORDERS ONLY!
         for order in self.fixed_orders:
             if current_t <= order.due_timestep <= planning_horizon_t:
                 for k in range(num_commodities):
@@ -75,7 +69,7 @@ class ExtendedNetwork:
                         nodes.append(node)
                         location_time_key = (order.customer.node_id, order.due_timestep)
                         #print("Adding to location time nodemap for customer: ",location_time_key," on order ",order.name)
-                        self.location_time_nodemap.setdefault(location_time_key, [None] * num_commodities)[k] = node
+                        self.location_time_nodemap.setdefault(location_time_key, [None] * num_commodities)[k] = node  # Todo check this map after assignment.
                         node_id_inc += 1
 
         # TODO theres something wrong with this calculation because the balancer doesnt complain. probably has to do with time windows.
@@ -116,12 +110,14 @@ class ExtendedNetwork:
         # TODO this is wrong because it's connecting based on physical network, will add all possible paths to orders when they are fixed.
         # It should only add all possible arcs between DC-Customer if they are open orders. Consider skipping orders altogether in this loop and do on next/
         # Otherwise,. remove next loop and add filters for only valid arcs for orders.
+        # ==========CONNECTING PHYSICAL ARCS OF DCS==========
         for physical_arc in self.network.arcs:
             for k in range(num_commodities):
                 for t in range(current_t, planning_horizon_t+1):
                     physical_tail = physical_arc.tail
                     physical_head = physical_arc.head
 
+                    # if tail or head are not in location time nodemap, or if head is a customer??? (
                     if (physical_head.node_id, t) not in self.location_time_nodemap.keys() or (physical_tail.node_id, t) not in self.location_time_nodemap.keys() or physical_head.kind == "C":
                         continue
 
@@ -155,7 +151,7 @@ class ExtendedNetwork:
 
         # Filters the arcs going to costumers based in the locations delivery time #TODO see if necessary.
         count = 0
-        for order in self.fixed_orders:
+        for order in self.fixed_orders:# TODO AQUIQ UEDE CHECK THIS HER MIGHT BE THE BUG.
             for k in range(num_commodities):
                 if current_t <= order.due_timestep <= planning_horizon_t and order.demand[k]>0:
                     head = self.location_time_nodemap[(order.customer.node_id, order.due_timestep)][k]
