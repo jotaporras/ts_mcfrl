@@ -90,9 +90,12 @@ class ShippingFacilityEnvironment(gym.Env):
         self.observation_space = spaces.Box(0, 1000000, shape=shape)
         # =====OBSERVATION SPEC=======
 
+        self.last_cost=0
+
         # Debug vars
         self.approx_transport_mvmt_list = []
         self.total_costs = []
+        self.total_rewards = []
 
         print("Calling init on the ShippingFacilityEnvironment")
 
@@ -120,18 +123,22 @@ class ShippingFacilityEnvironment(gym.Env):
         self.current_state['open'] = self.open_orders #TODO cleanup state update
 
         cost, transports, all_movements = self._run_simulation()
+        reward = (self.last_cost - cost)*-1.0 # todo: will first step be an issue? because no last cost means big positive.
+        #reward = cost * -1 # old reward function.
+        self.last_cost = cost
 
         # Adding approximate transport cost by taking transport matrices where transports are greater than zero. Assumes Customer transport == DC transport cost.
         self.all_movements_history.append(all_movements)
         self.approximate_transport_cost = transports[np.where(transports > 0)].sum() * self.environment_parameters.network.default_customer_transport_cost
         self.total_costs.append(cost)
+        self.total_rewards.append(reward)
         self.approx_transport_mvmt_list.append(self.approximate_transport_cost)
         #print("self.approx_transport_cost", self.approx_transport_cost)
         #print("Total transports (customer+dc) transports")
 
         self.transports_acc = transports
 
-        reward = cost * -1
+
 
         # update timestep and generate new locations if needed
         self.current_state = self._next_observation()
