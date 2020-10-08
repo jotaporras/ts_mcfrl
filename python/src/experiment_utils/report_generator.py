@@ -10,12 +10,13 @@ import pandas as pd
 from network.PhysicalNetwork import PhysicalNetwork
 
 
-def generate_movement_detail_report(all_movements_history) -> pd.DataFrame:
+def generate_movement_detail_report(all_movements_history,big_m_cost) -> pd.DataFrame:
     """
     Generates the detailed report of all movements in an episode.
     Movement types are introduced here: Transportation,  Inventory or Delivery.
 
     :type all_movements_history: List[List[(Arc, int)]]: DataFrame with all movements of the episode.
+    big_m_cost: cost to attribute to big m arcs.
     """
     records = []
     for day_movements in all_movements_history:
@@ -41,6 +42,8 @@ def generate_movement_detail_report(all_movements_history) -> pd.DataFrame:
                 customer_units = flow
                 customer_cost = arc.cost * flow
 
+            is_big_m =  arc.cost >= big_m_cost
+
             records.append(
                 (
                     arc.tail.location.name,
@@ -55,7 +58,8 @@ def generate_movement_detail_report(all_movements_history) -> pd.DataFrame:
                     inventory_units,
                     inventory_cost,
                     customer_units,
-                    customer_cost
+                    customer_cost,
+                    is_big_m
                 )
             )
     movement_detail_report = pd.DataFrame(records, columns=["source_name",
@@ -70,7 +74,8 @@ def generate_movement_detail_report(all_movements_history) -> pd.DataFrame:
                                                             "inventory_units",
                                                             "inventory_cost",
                                                             "customer_units",
-                                                            "customer_cost"
+                                                            "customer_cost",
+                                                            "is_big_m"
                                                             ])
     return movement_detail_report
 

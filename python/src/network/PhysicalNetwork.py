@@ -42,7 +42,14 @@ class PhysicalNetwork:
     inventory_dirichlet_parameters: np.array
     planning_horizon: int
 
-    def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=5):
+    def __init__(self, num_dcs,
+                 num_customers,
+                 dcs_per_customer,
+                 demand_mean,
+                 demand_var,
+                 big_m_factor=10000, # factor of how customre cost to apply to big m arcs.
+                 num_commodities=1,
+                 planning_horizon=5):
         logging.info("Calling physical network gen")
         # ======= HARDWIRED CONSTANTS RELATED TO TIME AND COSTS =====
         self.default_storage_cost = 1 #TODO HARDWIRED CONSTANTS
@@ -52,7 +59,7 @@ class PhysicalNetwork:
         self.default_customer_transport_cost = 10 #TODO HARDWIRED CONSTANTS
         self.default_inf_capacity = 999999
         #self.big_m_cost = self.default_customer_transport_cost*100000
-        self.big_m_cost = self.default_customer_transport_cost*100
+        self.big_m_cost = self.default_customer_transport_cost*big_m_factor
         self.demand_var = demand_var
         self.demand_mean = demand_mean
         self.planning_horizon = planning_horizon

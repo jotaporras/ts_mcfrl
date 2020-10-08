@@ -196,6 +196,7 @@ class DQNLightning(pl.LightningModule):
         self.hparams = hparams
 
         self.env = ShippingFacilityEnvironment(environment_parameters)
+        self.test_env = ShippingFacilityEnvironment(environment_parameters)
         obs_size = self.env.observation_space.shape[1] # todo changed from the default [0] in the example, maybe it was a standard.
         n_actions = self.env.action_space.n
 
@@ -204,7 +205,6 @@ class DQNLightning(pl.LightningModule):
 
         self.buffer = ReplayBuffer(self.hparams.replay_size)
         self.agent = Agent(self.env, self.buffer)
-        self.total_reward = 0
         self.episode_reward = 0
 
         # Initialize episode information for debugging.
@@ -260,7 +260,8 @@ class DQNLightning(pl.LightningModule):
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
-        return nn.MSELoss()(state_action_values, expected_state_action_values)
+        # return nn.MSELoss()(state_action_values, expected_state_action_values)
+        return nn.L1Loss()(state_action_values, expected_state_action_values)
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], nb_batch):
         """
@@ -301,15 +302,23 @@ class DQNLightning(pl.LightningModule):
 
         result.log("loss", loss)
         result.log("reward", reward)  # todo check if correct and if it fits.
-        result.log("total_reward", self.total_reward)  # todo check if correct and if it fits.
         result.log("episode_reward", self.episode_reward)
         result.log("episodes", self.episode_counter)
 
+
         return result
+
 
     def store_episode_info(self, info):
         logging.info("Finished episode, storing information")
         self.episodes_info.append(info)
+
+        movement_detail_report = info['movement_detail_report']
+        big_m_episode_count = movement_detail_report.is_big_m.astype(int).sum()
+        logging.info(f"Episode {self.episode_counter} had {big_m_episode_count} BigMs")
+
+        wandb.log({"big_m_count": big_m_episode_count}, commit=False)
+
         self.episode_counter += 1
         self.episode_reward = 0
 
@@ -385,6 +394,7 @@ def main() -> None:
             "demand_mean": 500,
             "demand_var": 150,
             "num_steps": 30,  # steps per episode
+            "big_m_factor": 10000 # how many times the customer cost is the big m.
         },
         "hps": {
             "env": "shipping-v0", #openai env ID.
@@ -399,8 +409,13 @@ def main() -> None:
             "eps_last_frame": 1000, # todo maybe drop
             "sync_rate": 2, # Rate to sync the target and learning network.
             "lr": 1e-2,
-        }
+        },
+        "seed": 0
     }
+    torch.manual_seed(config_dict['seed'])
+    np.random.seed(config_dict['seed'])
+    random.seed(config_dict['seed']) # not sure if actually used
+    np.random.seed(config_dict['seed'])
     # Debug dict
     # config_dict = {
     #     "env": {
@@ -435,7 +450,7 @@ def main() -> None:
     environment_config = config.env
     hparams = config.hps
 
-    experiment_name = "dqn_few_warehouses_v4"
+    experiment_name = "dqn_few_warehouses_v4__l1loss"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
@@ -456,6 +471,7 @@ def main() -> None:
         dcs_per_customer = environment_config['dcs_per_customer'],
         demand_mean = environment_config['demand_mean'],
         demand_var = environment_config['demand_var'],
+        big_m_factor = environment_config['big_m_factor'],
         num_commodities = environment_config['num_commodities'],
     )
     order_generator = ActualOrderGenerator(physical_network, environment_config['orders_per_day'])
@@ -487,9 +503,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    torch.manual_seed(0)
-    np.random.seed(0)
-    random.seed(0) # not sure if actually used
-    np.random.seed(0)
-
+    logging.root.level = logging.INFO
     main()

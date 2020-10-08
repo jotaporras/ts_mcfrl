@@ -106,9 +106,9 @@ class ShippingFacilityEnvironment(gym.Env):
         # Choose the shipping point for the selected order and fix the order.
         if DEBUG:
             logging.info("\n=============================================")
-            logging.info("===============> STARTING ENVIRONMENT STEP",self.current_t)
+            logging.info(f"===============> STARTING ENVIRONMENT STEP {self.current_t}")
             logging.info("=============================================")
-            logging.info("Received action",action)
+            logging.info(f"Received action {action}")
             logging.info("Pre env.step render:")
             #logging.info("Current state: ",self.current_state)
             self.render()
@@ -152,7 +152,7 @@ class ShippingFacilityEnvironment(gym.Env):
             # Appending final values to info object.
             final_ords:List[Order] = self.current_state['fixed']
 
-            movement_detail_report = report_generator.generate_movement_detail_report(self.all_movements_history)
+            movement_detail_report = report_generator.generate_movement_detail_report(self.all_movements_history,self.environment_parameters.network.big_m_cost)
             summary_movement_report = report_generator.generate_summary_movement_report(movement_detail_report)
 
             served_demand = sum([sum(o.demand) for o in final_ords])
