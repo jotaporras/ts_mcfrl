@@ -1,9 +1,13 @@
+import logging
 import os
 from typing import List
+
 
 from locations import Order
 from network import Arc
 import pandas as pd
+
+from network.PhysicalNetwork import PhysicalNetwork
 
 
 def generate_movement_detail_report(all_movements_history) -> pd.DataFrame:
@@ -107,3 +111,40 @@ def write_experiment_reports(info_object, experiment_name: object,base='data/res
         os.makedirs(f'{base}/{experiment_name}')
     info_object['movement_detail_report'].to_csv(f"{base}/{experiment_name}/movement_detail_report.csv",index=False)
     info_object['summary_movement_report'].to_csv(f"{base}/{experiment_name}/summary_movement_report.csv",index=False)
+
+def write_single_df_experiment_reports(info_object_list,experiment_name,base='data/results'):
+    movement_detail_reports = []
+    summary_movement_reports = []
+    for i, info in enumerate(info_object_list):
+        movement_detail_report = info['movement_detail_report']
+        movement_detail_report['episode'] = i
+        movement_detail_reports.append(movement_detail_report)
+        summary_movement_report = info['summary_movement_report']
+        summary_movement_report['episode'] = i
+        summary_movement_reports.append(summary_movement_report)
+    if len(movement_detail_reports)>0:
+        all_movement_detail_reports = pd.concat(movement_detail_reports,axis=0)
+        all_summary_movement_reports = pd.concat(summary_movement_reports, axis=0)
+        all_experiment_reports_info = {
+            'movement_detail_report': all_movement_detail_reports,
+            'summary_movement_report': all_summary_movement_reports
+        }
+
+        write_experiment_reports(all_experiment_reports_info, experiment_name, base)
+    else:
+        logging.info("No episodes completed, information skipped.")
+
+def generate_physical_network_valid_dcs(network: PhysicalNetwork):
+    rows = []
+    for ci,customer in enumerate(network.customers):
+        customer_dcs = []
+        for dci,dc in enumerate(network.dcs):
+            if network.dcs_per_customer_array[ci][dci] == 1:
+                rows.append( (customer.name,dc.name) )
+    valid_dcs = pd.DataFrame(rows,columns=['customer','valid_dc'])
+    return valid_dcs
+
+def write_generate_physical_network_valid_dcs(network: PhysicalNetwork, experiment_name, base="data/results"):
+    valid_dcs = generate_physical_network_valid_dcs(network)
+    valid_dcs.to_csv(f"{base}/{experiment_name}/valid_dcs.csv",index=False)
+

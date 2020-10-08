@@ -13,6 +13,7 @@ from gym import wrappers
 import tensorflow.compat.v1 as tf
 
 from locations import Orders
+import logging
 
 tf.disable_v2_behavior()
 
@@ -20,7 +21,7 @@ tf.disable_v2_behavior()
 from experiment_utils import network_flow_k_optimizer, report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 from locations.Order import Order
-DEBUG=False
+DEBUG=True
 
 # Abstract classes. BARNUM, you have to implement these
 class OrderGenerator(ABC):
@@ -96,25 +97,26 @@ class ShippingFacilityEnvironment(gym.Env):
         self.approx_transport_mvmt_list = []
         self.total_costs = []
         self.total_rewards = []
+        self.info = {}
 
-        print("Calling init on the ShippingFacilityEnvironment")
+        logging.info("Calling init on the ShippingFacilityEnvironment")
 
     # Taking a step forward after the agent selects an action for the current state.
     def step(self, action):
         # Choose the shipping point for the selected order and fix the order.
         if DEBUG:
-            print("\n=============================================")
-            print("===============> STARTING ENVIRONMENT STEP",self.current_t)
-            print("=============================================")
-            print("Received action",action)
-            print("Pre env.step render:")
-            #print("Current state: ",self.current_state)
+            logging.info("\n=============================================")
+            logging.info("===============> STARTING ENVIRONMENT STEP",self.current_t)
+            logging.info("=============================================")
+            logging.info("Received action",action)
+            logging.info("Pre env.step render:")
+            #logging.info("Current state: ",self.current_state)
             self.render()
 
         #"Setting shipping point",action," for order ",self.open_orders[0])
         new_shipping_point = self.environment_parameters.network.dcs[action]
         self.open_orders[0].shipping_point = new_shipping_point
-        #print("Order after seting action: ",self.open_orders[0])
+        #logging.info("Order after seting action: ",self.open_orders[0])
         self.fixed_orders = self.fixed_orders + [self.open_orders[0]]
         self.current_state['fixed'] = self.fixed_orders #TODO cleanup state update
 
@@ -133,8 +135,8 @@ class ShippingFacilityEnvironment(gym.Env):
         self.total_costs.append(cost)
         self.total_rewards.append(reward)
         self.approx_transport_mvmt_list.append(self.approximate_transport_cost)
-        #print("self.approx_transport_cost", self.approx_transport_cost)
-        #print("Total transports (customer+dc) transports")
+        #logging.info("self.approx_transport_cost", self.approx_transport_cost)
+        #logging.info("Total transports (customer+dc) transports")
 
         self.transports_acc = transports
 
@@ -155,7 +157,7 @@ class ShippingFacilityEnvironment(gym.Env):
 
             served_demand = sum([sum(o.demand) for o in final_ords])
             approximate_to_customer_cost = served_demand*self.environment_parameters.network.default_customer_transport_cost
-            info = {
+            self.info = {
                 'final_orders': final_ords, # The orders, with their final shipping point destinations.
                 'total_costs': self.total_costs, # Total costs per stepwise optimization
                 'approximate_transport_movement_list': self.total_costs, # Total costs per stepwise optimization
@@ -163,17 +165,17 @@ class ShippingFacilityEnvironment(gym.Env):
                 'movement_detail_report': movement_detail_report, # DataFrame with all the movements that were made.
                 'summary_movement_report': summary_movement_report  # DataFrame with movements summary per day.
             }
-            # print("==== Copy and paste this into a notebook ====")
-            # print("Total costs per stepwise optimization", self.total_costs)
-            # print("Total cost list associated with all transport movements", self.approx_transport_mvmt_list) #approximate because they're intermixed.
-            # print("Removing approx to customer cost", sum(self.approx_transport_mvmt_list)-approximate_to_customer_cost)
+            # logging.info("==== Copy and paste this into a notebook ====")
+            # logging.info("Total costs per stepwise optimization", self.total_costs)
+            # logging.info("Total cost list associated with all transport movements", self.approx_transport_mvmt_list) #approximate because they're intermixed.
+            # logging.info("Removing approx to customer cost", sum(self.approx_transport_mvmt_list)-approximate_to_customer_cost)
         else:
-            info={}# not done yet. #to do consider yielding this on every step for rendering purposes.
-        # print(f"Stepping with action {action}")
+            self.info={}# not done yet. #to do consider yielding this on every step for rendering purposes.
+        # logging.info(f"Stepping with action {action}")
         # obs = random.randint(0, 10)
         # reward = random.randint(0, 100)
         # done = np.random.choice([True, False])
-        return copy.copy(self.current_state), reward, done, info
+        return copy.copy(self.current_state), reward, done, self.info
 
     # def observation_space(self):
     #     dcs = self.environment_parameters.network.num_dcs
@@ -186,9 +188,9 @@ class ShippingFacilityEnvironment(gym.Env):
 
     def reset(self):
         # Reset the state of the environment to an initial state
-        #print("Physical network for new env: ")
-        #print(self.environment_parameters.network)
-        #print("Reseting environment")
+        #logging.info("Physical network for new env: ")
+        #logging.info(self.environment_parameters.network)
+        #logging.info("Reseting environment")
         self.inventory = np.zeros(
             (
                 self.environment_parameters.network.num_dcs,
@@ -205,36 +207,38 @@ class ShippingFacilityEnvironment(gym.Env):
         #debug var
         self.approx_transport_mvmt_list = []
         self.total_costs = []
-
+        self.total_rewards = []
 
         return copy.copy(self.current_state)
+
+
 
     def render(self, mode="human", close=False):
         pass #todo refactor this, it's too much noise
         # Render the environment to the screen
         # if mode == "human" and DEBUG:
-        #     print("\n\n======== RENDERING ======")
-        #     print("Current t",self.current_t)
-        #     print(f"fixed_orders ({len(self.fixed_orders)})", self.fixed_orders)
-        #     print(
+        #     logging.info("\n\n======== RENDERING ======")
+        #     logging.info("Current t",self.current_t)
+        #     logging.info(f"fixed_orders ({len(self.fixed_orders)})", self.fixed_orders)
+        #     logging.info(
         #         f"Demand fixed orders: {sum(map(lambda o:o.demand, self.fixed_orders))}"
         #     )  # TODO Do for all commodities
-        #     print(f"open_orders ({len(self.open_orders)})", self.open_orders)
-        #     print(
+        #     logging.info(f"open_orders ({len(self.open_orders)})", self.open_orders)
+        #     logging.info(
         #         f"Demand open orders: {sum(map(lambda o:o.demand, self.open_orders))}"
         #     )  # TODO Do for all commodities
-        #     print("inventory\n", self.inventory)
-        #     print("Current State:")
+        #     logging.info("inventory\n", self.inventory)
+        #     logging.info("Current State:")
         #     self._render_state()
-        #     print("======== END RENDERING ======\n\n")
+        #     logging.info("======== END RENDERING ======\n\n")
 
     def _render_state(self):
         if DEBUG:
-            print("Rendering mutable part of the state")
-            print("fixed: ",self.current_state['fixed'])
-            print("open: ",self.current_state['open'])
-            print("inventory: ", self.current_state['inventory'])
-            print("current_t: ", self.current_state['current_t'])
+            logging.info("Rendering mutable part of the state")
+            logging.info("fixed: ",self.current_state['fixed'])
+            logging.info("open: ",self.current_state['open'])
+            logging.info("inventory: ", self.current_state['inventory'])
+            logging.info("current_t: ", self.current_state['current_t'])
 
     def _next_observation(self):
         if len(self.open_orders) == 0:  # Create new locations if necessary
@@ -246,30 +250,30 @@ class ShippingFacilityEnvironment(gym.Env):
             new_orders = self._generate_orders()
             self.open_orders = self.open_orders + new_orders
 
-            #print("Updating inventory with orders")
-            #print("Before update: ")
-            #print(self.inventory)
+            #logging.info("Updating inventory with orders")
+            #logging.info("Before update: ")
+            #logging.info(self.inventory)
 
             self.inventory = self._generate_updated_inventory(consumed_inventory)
 
-            #print("inventory after orders before transports")
-            #print(self.inventory)
+            #logging.info("inventory after orders before transports")
+            #logging.info(self.inventory)
 
             if (self.transports_acc > 0).any():
-                # print("Applying transports!!! Transports:***")
-                # print(self.transports_acc)
+                # logging.info("Applying transports!!! Transports:***")
+                # logging.info(self.transports_acc)
                 self.inventory += self.transports_acc
-                # print("New inventory after transports")
-                # print(self.inventory)
-                # print("setting all to zero again")
+                # logging.info("New inventory after transports")
+                # logging.info(self.inventory)
+                # logging.info("setting all to zero again")
                 self.transports_acc[:, :] = 0
-                # print(self.transports_acc)
+                # logging.info(self.transports_acc)
 
 
 
             if (self.inventory<0).any():
-                print("THIS SHOULDNT HAPPEN!!!!! NEGATIVE INVENTORY")
-                print(self.inventory)
+                logging.info("THIS SHOULDNT HAPPEN!!!!! NEGATIVE INVENTORY")
+                logging.info(self.inventory)
                 raise Exception("THIS SHOULDNT HAPPEN!!!!! NEGATIVE INVENTORY")
         # else:
         #     self.inventory = self._generate_updated_inventory(0)
@@ -312,7 +316,7 @@ class ShippingFacilityEnvironment(gym.Env):
         return state_vector.transpose() #np.array((1,num_dcs*num_commodities + num_commodities))
 
     def _generate_orders(self) -> typing.List[Order]:
-        #print(f"Calling order generator for t={self.current_t}")
+        #logging.info(f"Calling order generator for t={self.current_t}")
         return self.environment_parameters.order_generator.generate_orders(self.current_t)
 
     def _generate_updated_inventory(self,consumed_inventory):
@@ -322,14 +326,14 @@ class ShippingFacilityEnvironment(gym.Env):
         return self.inventory + new_inventory - consumed_inventory
 
     def _calculate_consumed_inventory(self):
-        #print("Calculating consumed inventory")
+        #logging.info("Calculating consumed inventory")
         consumed = np.zeros(self.inventory.shape)
         for order in self.fixed_orders:
             if order.due_timestep == self.current_t:
-                #print("Order",order.name,"is getting consumed on timelapse ",self.current_t," from ",order.shipping_point)
+                #logging.info("Order",order.name,"is getting consumed on timelapse ",self.current_t," from ",order.shipping_point)
                 consumed[order.shipping_point.node_id,:] += order.demand
-        # print("Consumed inventory: ")
-        # print(consumed)
+        # logging.info("Consumed inventory: ")
+        # logging.info(consumed)
         return consumed
 
     def _run_simulation(self) -> float:
@@ -382,7 +386,7 @@ class NaiveInventoryGenerator(InventoryGenerator):
     def generate_new_inventory(
         self, network: PhysicalNetwork, open_orders: List[Order]
     ):
-        #print("==> inventory generator")
+        #logging.info("==> inventory generator")
         total_inventory = sum(
             map(lambda o: o.demand, open_orders)
         )  # TODO rename and do for many commmodities.
@@ -390,15 +394,15 @@ class NaiveInventoryGenerator(InventoryGenerator):
         dc_inv = np.array([even] * network.num_dcs).reshape(
             network.num_dcs,-1
         )  # To keep the (dc,product) shape. #todo validate with multiple commodities
-        # print("Demand", total_inventory)
-        # print("Pre level dc_inv")
-        # print(dc_inv)
-        # print("Total new inv",np.sum(dc_inv))
+        # logging.info("Demand", total_inventory)
+        # logging.info("Pre level dc_inv")
+        # logging.info(dc_inv)
+        # logging.info("Total new inv",np.sum(dc_inv))
         imbalance = total_inventory - np.sum(dc_inv,axis=0)
         #if total_inventory // network.num_dcs != total_inventory / network.num_dcs:
         dc_inv[0, :] = dc_inv[0, :] + imbalance
-        # print("Rebalanced dc inv",dc_inv)
-        # print("Rebalanced sum",np.sum(dc_inv))
+        # logging.info("Rebalanced dc inv",dc_inv)
+        # logging.info("Rebalanced sum",np.sum(dc_inv))
         if (np.sum(dc_inv,axis=0) != total_inventory).any():
             raise Exception("np.sum(dc_inv) != total_inventory")
         return dc_inv
@@ -408,13 +412,13 @@ class DirichletInventoryGenerator(InventoryGenerator):
     def __init__(self,network):
         num_dcs = network.num_dcs
         num_commodities = network.num_commodities
-        self.alpha = np.random.permutation(num_dcs/np.arange(1,num_dcs+1))
+        self.alpha = np.random.permutation(num_dcs/np.arange(1,num_dcs+1)) # trying to make it skewed.
         self.inventory_generation_distribution = np.random.dirichlet(self.alpha, num_commodities)  # (num_dc,num_k) of dc distribution of inventory.
 
     def generate_new_inventory(
         self, network: PhysicalNetwork, open_orders: List[Order]
     ):
-        #print("==> inventory generator")
+        #logging.info("==> inventory generator")
         total_inventory = sum(
             map(lambda o: o.demand, open_orders)
         )  # TODO rename and do for many commmodities.
@@ -425,13 +429,13 @@ class DirichletInventoryGenerator(InventoryGenerator):
         imbalance = total_inventory - np.sum(supply_per_dc, axis=1)
         supply_per_dc[:, 0] = supply_per_dc[:, 0] + imbalance
 
-        # print("Demand", total_inventory)
-        # print("Pre level dc_inv")
-        # print(dc_inv)
-        # print("Total new inv",np.sum(dc_inv))
+        # logging.info("Demand", total_inventory)
+        # logging.info("Pre level dc_inv")
+        # logging.info(dc_inv)
+        # logging.info("Total new inv",np.sum(dc_inv))
         #if total_inventory // network.num_dcs != total_inventory / network.num_dcs:
-        # print("Rebalanced dc inv",dc_inv)
-        # print("Rebalanced sum",np.sum(dc_inv))
+        # logging.info("Rebalanced dc inv",dc_inv)
+        # logging.info("Rebalanced sum",np.sum(dc_inv))
         if not np.isclose(np.sum(np.sum(supply_per_dc, axis=1) - total_inventory), 0.0):
             raise RuntimeError("Demand was not correctly balanced")
         return supply_per_dc.transpose()
@@ -464,16 +468,16 @@ class DirichletInventoryGenerator(InventoryGenerator):
 #     state = env.reset()
 #     reward = 0
 #     done = False
-#     print("=========== starting episode loop ===========")
-#     print("Initial environment: ")
+#     logging.info("=========== starting episode loop ===========")
+#     logging.info("Initial environment: ")
 #     env.render()
 #     while not done:
 #         action = agent.get_action((state, reward))
-#         print(f"Agent is taking action: {action}")
+#         logging.info(f"Agent is taking action: {action}")
 #         # the agent observes the first state and chooses an action
 #         # environment steps with the agent's action and returns new state and reward
 #         next_state, reward, done, info = env.step(action)
-#         print(f"Got reward {reward} done {done}")
+#         logging.info(f"Got reward {reward} done {done}")
 #
 #         agent.train((state,action,next_state,reward,done))
 #
@@ -482,7 +486,7 @@ class DirichletInventoryGenerator(InventoryGenerator):
 #         env.render()
 #
 #         if done:
-#             print("===========Environment says we are DONE ===========")
+#             logging.info("===========Environment says we are DONE ===========")
 
 
 

@@ -140,3 +140,5 @@ dmypy.json
 lightning_logs
 data
 *.png
+wandb/
+rl_warehouse_assignment

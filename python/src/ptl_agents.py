@@ -1,8 +1,14 @@
+import os
+import random
+import shutil
 from collections import deque
 
 import torch
+import wandb
 from envs import ShippingFacilityEnvironment
 from envs.network_flow_env import ActualOrderGenerator, DirichletInventoryGenerator
+from pytorch_lightning import Callback
+from pytorch_lightning.loggers import WandbLogger
 from shipping_allocation import EnvironmentParameters
 from torch import nn
 import numpy as np
@@ -18,6 +24,7 @@ import torch
 from typing import Tuple
 
 from collections import namedtuple
+import logging
 
 import numpy as np
 import argparse
@@ -25,6 +32,7 @@ from torch.utils.data.dataset import IterableDataset
 
 
 # Named tuple for storing experience steps gathered in training
+from experiment_utils import report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 
 Experience = namedtuple(
@@ -168,7 +176,7 @@ class Agent:
 
         # do step in the environment
 
-        new_state, reward, done, _ = self.env.step(action)
+        new_state, reward, done, info = self.env.step(action)
 
         exp = Experience(self.state['state_vector'].reshape(-1), action, reward, done, new_state['state_vector'].reshape(-1))
 
@@ -177,17 +185,16 @@ class Agent:
         self.state = new_state
         if done:
             self.reset()
-        return reward, done
+        return reward, done, info
 
 
 class DQNLightning(pl.LightningModule):
     """ Basic DQN Model """
 
-    def __init__(self, hparams: argparse.Namespace,environment_parameters) -> None:
+    def __init__(self, hparams: argparse.Namespace,environment_parameters:EnvironmentParameters) -> None:
         super().__init__()
         self.hparams = hparams
 
-        # self.env = gym.make(self.hparams.env)
         self.env = ShippingFacilityEnvironment(environment_parameters)
         obs_size = self.env.observation_space.shape[1] # todo changed from the default [0] in the example, maybe it was a standard.
         n_actions = self.env.action_space.n
@@ -199,6 +206,11 @@ class DQNLightning(pl.LightningModule):
         self.agent = Agent(self.env, self.buffer)
         self.total_reward = 0
         self.episode_reward = 0
+
+        # Initialize episode information for debugging.
+        self.episodes_info = []
+        self.episode_counter = 0
+
         self.populate(self.hparams.warm_start_steps)
 
     def populate(self, steps: int = 1000) -> None:
@@ -210,7 +222,9 @@ class DQNLightning(pl.LightningModule):
             steps: number of random steps to populate the buffer with
         """
         for i in range(steps):
-            self.agent.play_step(self.net, epsilon=1.0)
+            _, done, info = self.agent.play_step(self.net, epsilon=1.0)
+            if done:
+                self.store_episode_info(info)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -248,7 +262,7 @@ class DQNLightning(pl.LightningModule):
 
         return nn.MSELoss()(state_action_values, expected_state_action_values)
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], nb_batch) -> OrderedDict:
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], nb_batch):
         """
         Carries out a single step through the environment to update the replay buffer.
         Then calculates loss based on the minibatch recieved
@@ -265,7 +279,7 @@ class DQNLightning(pl.LightningModule):
                       self.global_step + 1 / self.hparams.eps_last_frame)
 
         # step through environment with agent
-        reward, done = self.agent.play_step(self.net, epsilon, device) # refill the buffer every time.
+        reward, done, info = self.agent.play_step(self.net, epsilon, device) # refill the buffer every time.
         self.episode_reward += reward
 
         # calculates training loss
@@ -274,23 +288,30 @@ class DQNLightning(pl.LightningModule):
         if self.trainer.use_dp or self.trainer.use_ddp2:
             loss = loss.unsqueeze(0)
 
-        if done:
-            self.total_reward = self.episode_reward
-            self.episode_reward = 0
-
         # Soft update of target network
         if self.global_step % self.hparams.sync_rate == 0:
             self.target_net.load_state_dict(self.net.state_dict())
 
-        log = {'total_reward': torch.tensor(self.total_reward).to(device),
-               'reward': torch.tensor(reward).to(device),
-               'train_loss': loss
-               }
-        status = {'steps': torch.tensor(self.global_step).to(device),
-                  'total_reward': torch.tensor(self.total_reward).to(device)
-                  }
+        if done:
+            self.store_episode_info(info)
 
-        return OrderedDict({'loss': loss, 'log': log, 'progress_bar': status})
+        result = pl.TrainResult(minimize=loss)
+
+        logging.info("Logging current steps metrics")
+
+        result.log("loss", loss)
+        result.log("reward", reward)  # todo check if correct and if it fits.
+        result.log("total_reward", self.total_reward)  # todo check if correct and if it fits.
+        result.log("episode_reward", self.episode_reward)
+        result.log("episodes", self.episode_counter)
+
+        return result
+
+    def store_episode_info(self, info):
+        logging.info("Finished episode, storing information")
+        self.episodes_info.append(info)
+        self.episode_counter += 1
+        self.episode_reward = 0
 
     def configure_optimizers(self) -> List[Optimizer]:
         """ Initialize Adam optimizer"""
@@ -313,41 +334,153 @@ class DQNLightning(pl.LightningModule):
         """Retrieve device currently being used by minibatch"""
         return batch[0].device.index if self.on_gpu else 'cpu'
 
+class MyPrintingCallback(Callback):
+    def on_init_start(self, trainer):
+        print('Starting to init trainer!')
 
-# todo just testing.
-def main(hparams) -> None:
-    num_dcs = 2
-    num_customers = 4
-    num_commodities = 4
-    orders_per_day = 2
-    dcs_per_customer = 2
-    demand_mean = 100
-    demand_var = 20
+    def on_init_end(self, trainer):
+        print('trainer is init now')
 
-    num_steps = 5
-    num_episodes = 5
-    physical_network = PhysicalNetwork(
-        num_dcs,
-        num_customers,
-        dcs_per_customer,
-        demand_mean,
-        demand_var,
-        num_commodities,
+    def on_epoch_end(self,trainer,pl_module):
+        print("epoch is done")
+
+    def on_train_end(self, trainer, pl_module):
+        print('do something when training ends')
+
+class WandbDataUploader():
+    def __init__(self, base="data/results"):
+        self.base = base
+
+    def upload(self, experiment_name):
+        # copy base to wandb.
+        shutil.copytree(os.path.join(self.base,experiment_name), os.path.join(wandb.run.dir,self.base,experiment_name))
+        #wandb.save(os.path.join(wandb.run.dir,self.base,experiment_name))
+        # wandb.save(os.path.join(self.base,experiment_name+"*"))
+
+class ShippingFacilityEnvironmentStorageCallback(Callback):
+    '''
+        Stores the information objects into CSVs for debugging Environment and actions.
+    '''
+    def __init__(self, experiment_name,base,experiment_uploader:WandbDataUploader):
+        self.experiment_name = experiment_name
+        self.base = base
+        self.experiment_uploader = experiment_uploader
+
+    def on_train_end(self, trainer, pl_module):
+        logging.info("Finished training, writing environment info objects") # todo aqui quede, see if this works and if it is sufficient reporting.
+        report_generator.write_single_df_experiment_reports(pl_module.episodes_info, self.experiment_name,self.base)
+        report_generator.write_generate_physical_network_valid_dcs(pl_module.env.environment_parameters.network, self.experiment_name,self.base)
+
+        self.experiment_uploader.upload(self.experiment_name)
+
+
+def main() -> None:
+    config_dict = {
+        "env": {
+            "num_dcs": 3,
+            "num_customers": 100,
+            "num_commodities": 35,
+            "orders_per_day": int(100 * 0.05),
+            "dcs_per_customer": 2,
+            "demand_mean": 500,
+            "demand_var": 150,
+            "num_steps": 30,  # steps per episode
+        },
+        "hps": {
+            "env": "shipping-v0", #openai env ID.
+            "replay_size": 150,
+            "warm_start_steps": 150, # apparently has to be smaller than batch size
+            "max_epochs": 5000, # to do is this num episodes, is it being used?
+            "episode_length": 30, # todo isn't this an env thing?
+            "batch_size": 30,
+            "gamma": 0.99,
+            "eps_end": 1.0, #todo consider keeping constant to start.
+            "eps_start": 0.99, #todo consider keeping constant to start.
+            "eps_last_frame": 1000, # todo maybe drop
+            "sync_rate": 2, # Rate to sync the target and learning network.
+            "lr": 1e-2,
+        }
+    }
+    # Debug dict
+    # config_dict = {
+    #     "env": {
+    #         "num_dcs": 3,
+    #         "num_customers": 10,
+    #         "num_commodities": 5,
+    #         "orders_per_day": 1,
+    #         "dcs_per_customer": 2,
+    #         "demand_mean": 500,
+    #         "demand_var": 150,
+    #         "num_steps": 10,  # steps per episode
+    #     },
+    #     "hps": {
+    #         "env": "shipping-v0", #openai env ID.
+    #         "replay_size": 30,
+    #         "warm_start_steps": 30, # apparently has to be smaller than batch size
+    #         "max_epochs": 20, # to do is this num episodes, is it being used?
+    #         "episode_length": 30, # todo isn't this an env thing?
+    #         "batch_size": 30,
+    #         "gamma": 0.99,
+    #         "eps_end": 1.0, #todo consider keeping constant to start.
+    #         "eps_start": 0.99, #todo consider keeping constant to start.
+    #         "eps_last_frame": 1000, # todo maybe drop
+    #         "sync_rate": 2, # Rate to sync the target and learning network.
+    #         "lr": 1e-2,
+    #     }
+    # }
+
+    run = wandb.init(config=config_dict)
+
+    config = wandb.config
+    environment_config = config.env
+    hparams = config.hps
+
+    experiment_name = "dqn_few_warehouses_v4"
+    wandb_logger = WandbLogger(
+        project="rl_warehouse_assignment",
+        name=experiment_name,
+        tags=[
+            #"debug"
+            "experiment"
+        ],
+        log_model=True
+
     )
-    order_generator = ActualOrderGenerator(physical_network, orders_per_day)
+
+
+    wandb_logger.log_hyperparams(dict(config))
+
+    physical_network = PhysicalNetwork(
+        num_dcs = environment_config['num_dcs'],
+        num_customers = environment_config['num_customers'],
+        dcs_per_customer = environment_config['dcs_per_customer'],
+        demand_mean = environment_config['demand_mean'],
+        demand_var = environment_config['demand_var'],
+        num_commodities = environment_config['num_commodities'],
+    )
+    order_generator = ActualOrderGenerator(physical_network, environment_config['orders_per_day'])
     generator = DirichletInventoryGenerator(physical_network)
 
     environment_parameters = EnvironmentParameters(
-        physical_network, num_steps, order_generator, generator
+        physical_network,
+        hparams['episode_length'],
+        order_generator, generator
     )
-    model = DQNLightning(hparams,environment_parameters)
+
+    model = DQNLightning(hparams, environment_parameters)
+
 
     trainer = pl.Trainer(
-        #gpus=0,
-        #distributed_backend='dp',
-        max_epochs=500,
+        max_epochs=hparams['max_epochs'],
         early_stop_callback=False,
-        val_check_interval=100
+        val_check_interval=100,
+        logger=wandb_logger,
+        log_save_interval=1,
+        row_log_interval=1, # the default of this may leave info behind.
+        callbacks=[
+            MyPrintingCallback(),
+            ShippingFacilityEnvironmentStorageCallback(experiment_name,base="data/results/",experiment_uploader=WandbDataUploader())
+        ]
     )
 
     trainer.fit(model)
@@ -356,26 +489,7 @@ def main(hparams) -> None:
 if __name__ == '__main__':
     torch.manual_seed(0)
     np.random.seed(0)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=1e-2, help="learning rate")
-    parser.add_argument("--env", type=str, default="CartPole-v0", help="gym environment tag")
-    parser.add_argument("--gamma", type=float, default=0.99, help="discount factor")
-    parser.add_argument("--sync_rate", type=int, default=10,
-                        help="how many frames do we update the target network")
-    parser.add_argument("--replay_size", type=int, default=1000,
-                        help="capacity of the replay buffer")
-    parser.add_argument("--warm_start_size", type=int, default=1000,
-                        help="how many samples do we use to fill our buffer at the start of training")
-    parser.add_argument("--eps_last_frame", type=int, default=1000,
-                        help="what frame should epsilon stop decaying")
-    parser.add_argument("--eps_start", type=float, default=1.0, help="starting value of epsilon")
-    parser.add_argument("--eps_end", type=float, default=0.01, help="final value of epsilon")
-    parser.add_argument("--episode_length", type=int, default=200, help="max length of an episode")
-    parser.add_argument("--max_episode_reward", type=int, default=200,
-                        help="max episode reward in the environment")
-    parser.add_argument("--warm_start_steps", type=int, default=1000,
-                        help="max episode reward in the environment")
+    random.seed(0) # not sure if actually used
+    np.random.seed(0)
 
-    args, _ = parser.parse_known_args()
-    main(args)
+    main()

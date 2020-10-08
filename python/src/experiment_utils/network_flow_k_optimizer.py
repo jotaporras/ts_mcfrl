@@ -16,6 +16,7 @@ from ortools.graph import pywrapgraph
 
 from experiment_utils.general_utils import round_to_1
 from network.PhysicalNetwork import PhysicalNetwork
+import logging
 
 DEBUG=False
 
@@ -39,35 +40,35 @@ def optimize(state):
         transport_matrix += tm
 
     if DEBUG:
-        print("Total optimization cost: ", total_cost)
-        print("Total transportation movements: ")
-        print(transport_matrix)
+        logging.info("Total optimization cost: ", total_cost)
+        logging.info("Total transportation movements: ")
+        logging.info(transport_matrix)
 
     return total_cost,transport_matrix,all_movements
 
 def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t,inventory_shape,inf_capacity=9000000):
     mcf = pywrapgraph.SimpleMinCostFlow()
 
-    #print("adding arcs and nodes")
+    #logging.info("adding arcs and nodes")
     problem_balance = 0
     mcfarcs = {}
     for n in extended_nodes:
         if n.commodity==k:
-            #print(f"mcf.SetNodeSupply({n.node_id},int({n.balance})), node: {n.name},{n}")
+            #logging.info(f"mcf.SetNodeSupply({n.node_id},int({n.balance})), node: {n.name},{n}")
             mcf.SetNodeSupply(n.node_id,int(n.balance))
             problem_balance+=n.balance
     for a in arcs:
         if a.commodity == k:
-            #print(f"mcf.AddArcWithCapacityAndUnitCost({a.tail.node_id}, {a.head.node_id}, {inf_capacity}, {a.cost}), arc: {a.name},{a}")
+            #logging.info(f"mcf.AddArcWithCapacityAndUnitCost({a.tail.node_id}, {a.head.node_id}, {inf_capacity}, {a.cost}), arc: {a.name},{a}")
             mcfarcs[(a.tail.node_id, a.head.node_id)] = a
             mcf.AddArcWithCapacityAndUnitCost(a.tail.node_id, a.head.node_id, inf_capacity, a.cost)
     if problem_balance !=0:
-        print(problem_balance)
+        logging.info(problem_balance)
         raise Exception(f"Encountered unbalanced problem on {k}")
     #if problem_balance == 0:
-        #print("MCF balance for ",k," is ",problem_balance)
+        #logging.info("MCF balance for ",k," is ",problem_balance)
     # else:
-    #     print("WARN!! MCF balance for ", k, " is ", problem_balance)
+    #     logging.info("WARN!! MCF balance for ", k, " is ", problem_balance)
 
 
     #TODO ai think delete.
@@ -83,18 +84,18 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
     #     if a.commodity == k:
     #         mcf.AddArcWithCapacityAndUnitCost(a.tail,a.head,inf_capacity,a.cost) #todo validate.
 
-    #print("Running optimization")
+    #logging.info("Running optimization")
     start = time.process_time()
     status = mcf.Solve()
     end = time.process_time()
     elapsed_ms = (end - start) / 1000000
-    #print(f"elapsed {elapsed_ms}ms")
-    #print(f"elapsed {round_to_1(elapsed_ms / 1000)}s")
+    #logging.info(f"elapsed {elapsed_ms}ms")
+    #logging.info(f"elapsed {round_to_1(elapsed_ms / 1000)}s")
 
     transport_movements = np.zeros(inventory_shape)
     all_movements = []
     if status == mcf.OPTIMAL:
-        #print("\nFlows: ")
+        #logging.info("\nFlows: ")
         for ai in range(mcf.NumArcs()):
             tail = mcf.Tail(ai)
             head = mcf.Head(ai)
@@ -104,27 +105,28 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
             if a.commodity==k and mcf.Flow(ai) > 0 and a.head.time==current_t:
                 all_movements.append((a,mcf.Flow(ai)))
 
-            #print(f"{a.name} = {mcf.Flow(ai)}",end="")
+            #logging.info(f"{a.name} = {mcf.Flow(ai)}",end="")
             if a.commodity==k and a.transportation_arc() and mcf.Flow(ai)>0 and a.head.time==current_t:
                 transport_movements[a.tail.location.node_id,k] -= mcf.Flow(ai) #subtract from source
                 transport_movements[a.head.location.node_id, k] += mcf.Flow(ai)  #add to destination
             if a.cost >= state['physical_network'].big_m_cost and mcf.Flow(ai)>0:
-                print("This is a Big M cost found in the optimization",a,"==>",mcf.Flow(ai))
-                print(a.tail.location,a.head.location)
+                if DEBUG:
+                    logging.info("This is a Big M cost found in the optimization", a, "==>", mcf.Flow(ai))
+                    logging.info(a.tail.location, a.head.location)
             #if a.commodity==k and a.transportation_arc() and mcf.Flow(ai)>0:
-                #print("***")
-                #print(f"***This a transp arc id {a.arc_id} with flow",a,mcf.Flow(ai)) #toido aqui quede y ver bien flows.
+                #logging.info("***")
+                #logging.info(f"***This a transp arc id {a.arc_id} with flow",a,mcf.Flow(ai)) #toido aqui quede y ver bien flows.
             #else:
-               # print("")
-        # print('Minimum cost:', mcf.OptimalCost())
+               # logging.info("")
+        # logging.info('Minimum cost:', mcf.OptimalCost())
 
     else:
-        print(f"Status",status)
+        logging.info(f"Status",status)
         raise Exception("Something happened")
 
     #if (transport_movements>0).any():
-        #print("Executing an inventory transport: ")
-        #print(transport_movements)
+        #logging.info("Executing an inventory transport: ")
+        #logging.info(transport_movements)
 
     return mcf.OptimalCost(),transport_movements, all_movements
 

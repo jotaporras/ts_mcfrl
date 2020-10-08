@@ -5,7 +5,7 @@ from locations.Order import Order
 from network.Node import Node
 from network.Arc import Arc
 import numpy as np
-import random as rd
+import logging
 
 #For debugging, mostly
 class Customer:
@@ -43,7 +43,7 @@ class PhysicalNetwork:
     planning_horizon: int
 
     def __init__(self, num_dcs, num_customers, dcs_per_customer, demand_mean,demand_var, num_commodities=1,planning_horizon=5):
-        print("Calling physical network gen")
+        logging.info("Calling physical network gen")
         # ======= HARDWIRED CONSTANTS RELATED TO TIME AND COSTS =====
         self.default_storage_cost = 1 #TODO HARDWIRED CONSTANTS
         self.default_delivery_time = 3 #TODO HARDWIRED CONSTANTS
@@ -119,7 +119,7 @@ class PhysicalNetwork:
             np.random.dirichlet(self.num_customers / np.arange(1, self.num_customers + 1),
                                 size=1) * total_demand_mean).reshape(-1)+self.demand_mean#(cust) #sum mean at the end to avoid negs.
 
-        print("Current customer means",self.customer_means)
+        logging.info("Current customer means",self.customer_means)
 
         # Parameters for inventory distribution hardwired for now.
         self.inventory_dirichlet_parameters = [5.] * self.num_dcs #todo deprecated not used
@@ -143,11 +143,11 @@ class PhysicalNetwork:
         chosen_customers = np.random.choice(np.arange(self.num_customers), size=orders_per_day, replace=False)
         order_means = self.customer_means[chosen_customers]
 
-        demand = np.floor(np.random.multivariate_normal(order_means, np.eye(orders_per_day) * self.demand_var,
+        demand = np.floor(np.random.multivariate_normal(order_means, np.eye(orders_per_day) * self.demand_var ,
                                       size=self.num_commodities))  # shape (num_commodities,num_orders)
         if (demand<0).any():
-            print("Customer means that caused negatives")
-            print(order_means)
+            logging.info("Customer means that caused negatives")
+            logging.info(order_means)
             #raise Exception("Generated a negative order")
             demand = np.abs(demand)
         # Create order objects
@@ -160,7 +160,7 @@ class PhysicalNetwork:
             initial_point_physical_node = self.dcs[chosen_initial_point]
             time = current_t+self.planning_horizon-1 #Orders appear on the edge of PH.
             orders.append(Order(order_demand_vector, initial_point_physical_node, customer_node, time, name=f"oc_{customer_node.node_id}:{time}"))
-        #print("Orders",orders)
+        #logging.info("Orders",orders)
         return orders
 
     def is_valid_arc(self,dc,customer):
