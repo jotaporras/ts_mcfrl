@@ -43,6 +43,7 @@ def generate_movement_detail_report(all_movements_history,big_m_cost) -> pd.Data
                 customer_cost = arc.cost * flow
 
             is_big_m =  arc.cost >= big_m_cost
+            commodity = arc.commodity
 
             records.append(
                 (
@@ -50,6 +51,7 @@ def generate_movement_detail_report(all_movements_history,big_m_cost) -> pd.Data
                     arc.head.location.name,
                     arc.tail.time,
                     arc.head.time,
+                    commodity,
                     arc.tail.kind,
                     arc.head.kind,
                     movement_type,
@@ -66,6 +68,7 @@ def generate_movement_detail_report(all_movements_history,big_m_cost) -> pd.Data
                                                             "destination_name",
                                                             "source_time",
                                                             "destination_time",
+                                                            "commodity",
                                                             "source_kind",
                                                             "destination_kind",
                                                             "movement_type",
