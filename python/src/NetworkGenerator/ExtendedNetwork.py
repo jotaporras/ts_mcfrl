@@ -47,12 +47,8 @@ class ExtendedNetwork:
                     expanded_node_id = node_id_inc
                     dc_k_inventory = self.inventory[dc.node_id, k] if t == current_t else 0  # inventory is (dc,k)
                     node = TENNode(expanded_node_id, dc_k_inventory, 0, k, dc.kind, t, dc, name=f"{expanded_node_id}__{dc.name}^{k}:{t}")
-                    # Adds the load according to the initial point of the order
-                    # if node.node_id in nodes_with_demand: # TODO what is this??????
-                    #     node.flow = nodes_with_demand[node.node_id]
                     nodes.append(node)
 
-                    #print("Adding to location time nodemap for dc: ", (dc.node_id, t))
                     self.location_time_nodemap.setdefault((dc.node_id, t), [None] * num_commodities)[k] = node # Todo check this map after assignment.
 
                     node_id_inc += 1
@@ -68,7 +64,6 @@ class ExtendedNetwork:
                                        name=f"{node_id_inc}__{order.name}^{k}:{order.due_timestep}")
                         nodes.append(node)
                         location_time_key = (order.customer.node_id, order.due_timestep)
-                        #print("Adding to location time nodemap for customer: ",location_time_key," on order ",order.name)
                         self.location_time_nodemap.setdefault(location_time_key, [None] * num_commodities)[k] = node  # Todo check this map after assignment.
                         node_id_inc += 1
 

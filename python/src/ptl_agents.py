@@ -260,8 +260,8 @@ class DQNLightning(pl.LightningModule):
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
-        # return nn.MSELoss()(state_action_values, expected_state_action_values)
-        return nn.L1Loss()(state_action_values, expected_state_action_values)
+        return nn.MSELoss()(state_action_values, expected_state_action_values)
+        # return nn.L1Loss()(state_action_values, expected_state_action_values)
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], nb_batch):
         """
@@ -313,14 +313,42 @@ class DQNLightning(pl.LightningModule):
         logging.info("Finished episode, storing information")
         self.episodes_info.append(info)
 
-        movement_detail_report = info['movement_detail_report']
-        big_m_episode_count = movement_detail_report.is_big_m.astype(int).sum()
-        logging.info(f"Episode {self.episode_counter} had {big_m_episode_count} BigMs")
-
-        wandb.log({"big_m_count": big_m_episode_count}, commit=False)
+        self._wandb_custom_metrics(info)
 
         self.episode_counter += 1
         self.episode_reward = 0
+
+    def _wandb_custom_metrics(self, info):
+        movement_detail_report = info['movement_detail_report']
+
+        # Calculate big ms
+        big_m_episode_count = movement_detail_report.is_big_m.astype(int).sum()
+
+        # Calculate interplant transports
+        transports = movement_detail_report[(movement_detail_report.movement_type == "Transportation")]
+
+        total_interplants = transports.transportation_units.sum()
+
+        incoming_interplants = transports.groupby("destination_name")['transportation_units'].sum().to_dict()
+
+        # Calculate assignments per shipping point.
+        deliveries = movement_detail_report[(movement_detail_report.movement_type == "Delivery")]
+        deliveries_per_shipping_point_units = deliveries.groupby(['source_name'])['customer_units'].sum().to_dict()
+        deliveries_per_shipping_point_orders = deliveries.drop_duplicates(["source_name","destination_name","source_time","destination_time"]).groupby("source_name").size().to_dict()
+
+
+        # Per shipping point-customer?
+
+
+        logging.info(f"Episode {self.episode_counter} had {big_m_episode_count} BigMs")
+
+        wandb.log({
+            "big_m_count": big_m_episode_count,
+            "incoming_interplants": incoming_interplants,
+            "total_interplants": total_interplants,
+            "deliveries_per_shipping_point_units": deliveries_per_shipping_point_units,
+            "deliveries_per_shipping_point_orders": deliveries_per_shipping_point_orders,
+        }, commit=False)
 
     def configure_optimizers(self) -> List[Optimizer]:
         """ Initialize Adam optimizer"""
@@ -412,21 +440,19 @@ def main() -> None:
         },
         "seed": 0
     }
-    torch.manual_seed(config_dict['seed'])
-    np.random.seed(config_dict['seed'])
-    random.seed(config_dict['seed']) # not sure if actually used
-    np.random.seed(config_dict['seed'])
+
     # Debug dict
     # config_dict = {
     #     "env": {
     #         "num_dcs": 3,
-    #         "num_customers": 10,
-    #         "num_commodities": 5,
+    #         "num_customers": 100,
+    #         "num_commodities": 35,
     #         "orders_per_day": 1,
     #         "dcs_per_customer": 2,
     #         "demand_mean": 500,
     #         "demand_var": 150,
     #         "num_steps": 10,  # steps per episode
+    #         "big_m_factor": 10000
     #     },
     #     "hps": {
     #         "env": "shipping-v0", #openai env ID.
@@ -441,8 +467,14 @@ def main() -> None:
     #         "eps_last_frame": 1000, # todo maybe drop
     #         "sync_rate": 2, # Rate to sync the target and learning network.
     #         "lr": 1e-2,
-    #     }
+    #     },
+    #     "seed":0
     # }
+
+    torch.manual_seed(config_dict['seed'])
+    np.random.seed(config_dict['seed'])
+    random.seed(config_dict['seed']) # not sure if actually used
+    np.random.seed(config_dict['seed'])
 
     run = wandb.init(config=config_dict)
 
@@ -450,18 +482,17 @@ def main() -> None:
     environment_config = config.env
     hparams = config.hps
 
-    experiment_name = "dqn_few_warehouses_v4__l1loss"
+    experiment_name = "dqn_few_warehouses_v4__l2loss_bugfix"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
         tags=[
-            #"debug"
-            "experiment"
+            "debug"
+            # "experiment"
         ],
         log_model=True
 
     )
-
 
     wandb_logger.log_hyperparams(dict(config))
 

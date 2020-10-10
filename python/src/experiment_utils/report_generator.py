@@ -19,6 +19,7 @@ def generate_movement_detail_report(all_movements_history,big_m_cost) -> pd.Data
     big_m_cost: cost to attribute to big m arcs.
     """
     records = []
+    unique_keys = set()
     for day_movements in all_movements_history:
         for arc, flow in day_movements:
             movement_type = "N/A"
@@ -44,6 +45,18 @@ def generate_movement_detail_report(all_movements_history,big_m_cost) -> pd.Data
 
             is_big_m =  arc.cost >= big_m_cost
             commodity = arc.commodity
+
+
+            key = (arc.tail.location.name,
+                    arc .head.location.name,
+                    arc.tail.time,
+                    arc.head.time,
+                    commodity)
+
+            if key in unique_keys and movement_type=='Delivery':
+                logging.error("This should never happen! The key {key} is added twice in the movement report")
+            else:
+                unique_keys.add(key)
 
             records.append(
                 (

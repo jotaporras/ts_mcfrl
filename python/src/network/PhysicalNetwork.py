@@ -113,6 +113,7 @@ class PhysicalNetwork:
 
         #heavymetal distribution.
         total_demand_mean = self.demand_mean * self.num_customers * self.num_commodities
+        # Dont remember what this was but is dirichlet with different parameter, maybe this was more skewed.
         # self.demand_mean_matrix = np.floor(
         #     np.random.dirichlet(self.num_customers / np.arange(1, self.num_customers + 1),
         #                         size=1) * total_demand_mean).reshape(-1) #(cust)
@@ -126,7 +127,8 @@ class PhysicalNetwork:
             np.random.dirichlet(self.num_customers / np.arange(1, self.num_customers + 1),
                                 size=1) * total_demand_mean).reshape(-1)+self.demand_mean#(cust) #sum mean at the end to avoid negs.
 
-        logging.info("Current customer means",self.customer_means)
+        logging.info(f"Current customer means")
+        logging.info(self.customer_means)
 
         # Parameters for inventory distribution hardwired for now.
         self.inventory_dirichlet_parameters = [5.] * self.num_dcs #todo deprecated not used
