@@ -5,7 +5,7 @@ from collections import deque
 
 import torch
 import wandb
-from envs import ShippingFacilityEnvironment
+from envs import ShippingFacilityEnvironment, network_flow_env_builder
 from envs.network_flow_env import ActualOrderGenerator, DirichletInventoryGenerator
 from pytorch_lightning import Callback
 from pytorch_lightning.loggers import WandbLogger
@@ -114,7 +114,7 @@ class RLDataset(IterableDataset):
 
 class Agent:
     """
-    Base Agent class handeling the interaction with the environment
+    Base Agent class handling the interaction with the environment
 
     Args:
         env: training environment
@@ -188,6 +188,19 @@ class Agent:
         return reward, done, info
 
 
+# todo see if it's worth it to abstract this to get non NN agents on the PTL model, or rather create new PTL Modules for other agents.
+# def build_dqn_lightning_module(env, replay_size):
+#     obs_size = env.observation_space.shape[1]
+#     n_actions = env.action_space.n
+#
+#     net = DQN(obs_size, n_actions)  # todo change
+#     target_net = DQN(obs_size, n_actions)
+#
+#     buffer = ReplayBuffer(replay_size)
+#     agent = Agent(env, buffer)
+#
+#     return DQNLightning(hparams,environment,)
+
 class DQNLightning(pl.LightningModule):
     """ Basic DQN Model """
 
@@ -196,8 +209,8 @@ class DQNLightning(pl.LightningModule):
         self.hparams = hparams
 
         self.env = ShippingFacilityEnvironment(environment_parameters)
-        self.test_env = ShippingFacilityEnvironment(environment_parameters)
-        obs_size = self.env.observation_space.shape[1] # todo changed from the default [0] in the example, maybe it was a standard.
+
+        obs_size = self.env.observation_space.shape[1]
         n_actions = self.env.action_space.n
 
         self.net = DQN(obs_size, n_actions)# todo change
@@ -318,7 +331,7 @@ class DQNLightning(pl.LightningModule):
         self.episode_counter += 1
         self.episode_reward = 0
 
-    def _wandb_custom_metrics(self, info):
+    def _wandb_custom_metrics(self, info): #todo duplicate, refactor
         movement_detail_report = info['movement_detail_report']
 
         # Calculate big ms
@@ -335,6 +348,7 @@ class DQNLightning(pl.LightningModule):
         deliveries = movement_detail_report[(movement_detail_report.movement_type == "Delivery")]
         deliveries_per_shipping_point_units = deliveries.groupby(['source_name'])['customer_units'].sum().to_dict()
         deliveries_per_shipping_point_orders = deliveries.drop_duplicates(["source_name","destination_name","source_time","destination_time"]).groupby("source_name").size().to_dict()
+        mean_dcs_per_customer = deliveries.groupby(['destination_name'])['source_name'].nunique().reset_index().source_name.mean()
 
 
         # Per shipping point-customer?
@@ -348,6 +362,7 @@ class DQNLightning(pl.LightningModule):
             "total_interplants": total_interplants,
             "deliveries_per_shipping_point_units": deliveries_per_shipping_point_units,
             "deliveries_per_shipping_point_orders": deliveries_per_shipping_point_orders,
+            "mean_dcs_per_customer": mean_dcs_per_customer,
         }, commit=False)
 
     def configure_optimizers(self) -> List[Optimizer]:
@@ -389,10 +404,13 @@ class WandbDataUploader():
         self.base = base
 
     def upload(self, experiment_name):
+        '''
+            Copies the base directory of experiment results to the wandb directory for upload
+        :param experiment_name:
+        :return:
+        '''
         # copy base to wandb.
         shutil.copytree(os.path.join(self.base,experiment_name), os.path.join(wandb.run.dir,self.base,experiment_name))
-        #wandb.save(os.path.join(wandb.run.dir,self.base,experiment_name))
-        # wandb.save(os.path.join(self.base,experiment_name+"*"))
 
 class ShippingFacilityEnvironmentStorageCallback(Callback):
     '''
@@ -428,7 +446,7 @@ def main() -> None:
             "env": "shipping-v0", #openai env ID.
             "replay_size": 150,
             "warm_start_steps": 150, # apparently has to be smaller than batch size
-            "max_epochs": 5000, # to do is this num episodes, is it being used?
+            "max_episodes": 500, # to do is this num episodes, is it being used?
             "episode_length": 30, # todo isn't this an env thing?
             "batch_size": 30,
             "gamma": 0.99,
@@ -482,13 +500,13 @@ def main() -> None:
     environment_config = config.env
     hparams = config.hps
 
-    experiment_name = "dqn_few_warehouses_v4__l2loss_bugfix"
+    experiment_name = "dqn_few_warehouses_v4__demandgen_biased"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
         tags=[
-            "debug"
-            # "experiment"
+            # "debug"
+            "experiment"
         ],
         log_model=True
 
@@ -496,29 +514,17 @@ def main() -> None:
 
     wandb_logger.log_hyperparams(dict(config))
 
-    physical_network = PhysicalNetwork(
-        num_dcs = environment_config['num_dcs'],
-        num_customers = environment_config['num_customers'],
-        dcs_per_customer = environment_config['dcs_per_customer'],
-        demand_mean = environment_config['demand_mean'],
-        demand_var = environment_config['demand_var'],
-        big_m_factor = environment_config['big_m_factor'],
-        num_commodities = environment_config['num_commodities'],
-    )
-    order_generator = ActualOrderGenerator(physical_network, environment_config['orders_per_day'])
-    generator = DirichletInventoryGenerator(physical_network)
-
-    environment_parameters = EnvironmentParameters(
-        physical_network,
+    environment_parameters = network_flow_env_builder.build_network_flow_env_parameters(
+        environment_config,
         hparams['episode_length'],
-        order_generator, generator
+        order_gen='biased'
     )
 
     model = DQNLightning(hparams, environment_parameters)
 
 
     trainer = pl.Trainer(
-        max_epochs=hparams['max_epochs'],
+        max_epochs=hparams['max_episodes']*hparams['replay_size'],
         early_stop_callback=False,
         val_check_interval=100,
         logger=wandb_logger,

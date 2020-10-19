@@ -29,7 +29,7 @@ class DistributionCenter:
 
 class PhysicalNetwork:
     """
-    Definition of a network
+    Definition of a physical network, including the graph of DCS and customers
     
     :param int num_dcs: num of nodes that are not costumers
     :param int num_customers: num of nodes that are costumers
@@ -81,7 +81,7 @@ class PhysicalNetwork:
 
     def _generate(self):
         """
-        Generates the dcs and costumer nodes and the arcs
+        Generates the dcs and customer nodes and the arcs
         """
 
         # Generate allowed DCs per customer
@@ -133,7 +133,6 @@ class PhysicalNetwork:
         # Parameters for inventory distribution hardwired for now.
         self.inventory_dirichlet_parameters = [5.] * self.num_dcs #todo deprecated not used
 
-        # TODO probably delete this.
         #Generate a random arc between dcs and costumers
         for cid in range(self.num_customers):
             #counter = 0
@@ -146,31 +145,6 @@ class PhysicalNetwork:
                 self.arcs.append(Arc(arc_id, dcO_node, customer_node, cost, capacity, -1, name=f"{dcO_node.name}_to_{customer_node.name}"))
                 arc_id+=1
                 #counter += 1
-
-    def generate_orders(self, orders_per_day: int, current_t): #TODO test and validate.
-        # Choose customers to generate orders with OUT replacement, orders per day must be <= customers
-        chosen_customers = np.random.choice(np.arange(self.num_customers), size=orders_per_day, replace=False)
-        order_means = self.customer_means[chosen_customers]
-
-        demand = np.floor(np.random.multivariate_normal(order_means, np.eye(orders_per_day) * self.demand_var ,
-                                      size=self.num_commodities))  # shape (num_commodities,num_orders)
-        if (demand<0).any():
-            logging.info("Customer means that caused negatives")
-            logging.info(order_means)
-            #raise Exception("Generated a negative order")
-            demand = np.abs(demand)
-        # Create order objects
-        orders = []
-        for ci in range(len(chosen_customers)):
-            order_demand_vector = demand[:,ci]
-            _chosen_customer = chosen_customers[ci]
-            customer_node = self.customers[_chosen_customer]
-            chosen_initial_point = np.random.choice(np.argwhere(self.dcs_per_customer_array[ci, :]).reshape(-1)) #TO DO AQUI QUEWDE HACER ESTO.
-            initial_point_physical_node = self.dcs[chosen_initial_point]
-            time = current_t+self.planning_horizon-1 #Orders appear on the edge of PH.
-            orders.append(Order(order_demand_vector, initial_point_physical_node, customer_node, time, name=f"oc_{customer_node.node_id}:{time}"))
-        #logging.info("Orders",orders)
-        return orders
 
     def is_valid_arc(self,dc,customer):
         base_customer_id=customer-self.num_dcs

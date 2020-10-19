@@ -20,9 +20,7 @@ def test_one_timestep():
     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
     generator = NaiveInventoryGenerator()
-    environment_parameters = EnvironmentParameters(
-        physical_network, num_episodes, order_generator, generator
-    )
+    environment_parameters = EnvironmentParameters(physical_network, order_generator, generator, num_episodes)
 
     env = ShippingFacilityEnvironment(environment_parameters)
     agent = RandomAgent(env.action_space)
@@ -55,9 +53,7 @@ def run_with_params(num_dcs, num_customers, dcs_per_customer, demand_mean, deman
     # order_generator = NaiveOrderGenerator(num_dcs, num_customers, orders_per_day)
     order_generator = ActualOrderGenerator(physical_network, orders_per_day)
     generator = NaiveInventoryGenerator()
-    environment_parameters = EnvironmentParameters(
-        physical_network, num_episodes, order_generator, generator
-    )
+    environment_parameters = EnvironmentParameters(physical_network, order_generator, generator, num_episodes)
 
     env = ShippingFacilityEnvironment(environment_parameters)
     agent = RandomAgent(env.action_space)

@@ -7,8 +7,7 @@ register(
     id='shipping-v0',
     entry_point='shipping_allocation.envs:ShippingFacilityEnvironment',
     kwargs={
-        'environment_parameters': EnvironmentParameters(PhysicalNetwork(5, 5, 2,100, 20), 5,
-                                                        NaiveOrderGenerator(5, 5, 2),
-                                                        NaiveInventoryGenerator())
+        'environment_parameters': EnvironmentParameters(PhysicalNetwork(5, 5, 2, 100, 20), NaiveOrderGenerator(5, 5, 2),
+                                                        NaiveInventoryGenerator(), 5)
     }
 )

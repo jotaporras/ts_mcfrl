@@ -8,6 +8,8 @@ import copy
 
 # Environment and agent
 import gym
+import scipy
+import scipy.stats
 from gym import spaces
 from gym import wrappers
 import tensorflow.compat.v1 as tf
@@ -41,13 +43,8 @@ class InventoryGenerator(ABC):
 
 # All the immutable things that affect environment behavior, maybe needs more parameters?
 class EnvironmentParameters:
-    def __init__(
-        self,
-        network: PhysicalNetwork,
-        num_steps: int,
-        order_generator: OrderGenerator,
-        inventory_generator: InventoryGenerator,
-    ):
+    def __init__(self, network: PhysicalNetwork, order_generator: OrderGenerator,
+                 inventory_generator: InventoryGenerator, num_steps: int):
         self.network = network
         self.num_steps = num_steps
         self.order_generator = order_generator
@@ -365,17 +362,6 @@ class NaiveOrderGenerator(OrderGenerator):
         ]
 
 
-class ActualOrderGeneratorOld(OrderGenerator):
-    network: PhysicalNetwork
-    orders_per_day: int
-
-    def __init__(self, network: PhysicalNetwork, orders_per_day):
-        self.network = network
-        self.orders_per_day = orders_per_day
-
-    def generate_orders(self,current_t) -> List[Order]:
-        return self.network.generate_orders(self.orders_per_day,current_t)
-
 class ActualOrderGenerator(OrderGenerator):
     network: PhysicalNetwork
     orders_per_day: int
@@ -384,8 +370,94 @@ class ActualOrderGenerator(OrderGenerator):
         self.network = network
         self.orders_per_day = orders_per_day
 
-    def generate_orders(self,current_t) -> List[Order]:
-        return self.network.generate_orders(self.orders_per_day,current_t)
+    def generate_orders(self, current_t) -> List[Order]:
+        return self._generate_orders(self.orders_per_day, current_t)
+
+    def _generate_orders(self, orders_per_day: int, current_t):  # TODO test and validate.
+        # Choose customers to generate orders with OUT replacement, orders per day must be <= customers
+        chosen_customers = np.random.choice(np.arange(self.network.num_customers), size=orders_per_day, replace=False)
+        order_means = self.network.customer_means[chosen_customers]
+
+        demand = np.floor(np.random.multivariate_normal(order_means, np.eye(orders_per_day) * self.network.demand_var,
+                                                        size=self.network.num_commodities))  # shape (num_commodities,num_orders)
+        if (demand < 0).any():
+            logging.info("Customer means that caused negatives")
+            logging.info(order_means)
+            # raise Exception("Generated a negative order")
+            demand = np.abs(demand)
+        # Create order objects
+        orders = []
+        for ci in range(len(chosen_customers)):
+            order_demand_vector = demand[:, ci]
+            _chosen_customer = chosen_customers[ci]
+            customer_node = self.network.customers[_chosen_customer]
+            chosen_initial_point = np.random.choice(np.argwhere(self.network.dcs_per_customer_array[ci, :]).reshape(-1))
+            initial_point_physical_node = self.network.dcs[chosen_initial_point]
+            time = current_t + self.network.planning_horizon - 1  # Orders appear on the edge of PH.
+            orders.append(Order(order_demand_vector, initial_point_physical_node, customer_node, time,
+                                name=f"oc_{customer_node.node_id}:{time}"))
+        return orders
+
+class BiasedOrderGenerator(OrderGenerator):
+    network: PhysicalNetwork
+    orders_per_day: int
+    customer_means: np.array
+
+    def __init__(self, network: PhysicalNetwork, orders_per_day):
+        self.network = network
+        self.orders_per_day = orders_per_day
+        self.customer_covariances = self._generate_customer_covariances() #shape:(C,K,K)
+        self.customer_means = self._generate_customer_means()
+
+    def _generate_customer_covariances(self):
+        K = self.network.num_commodities
+        num_customers = self.network.num_customers
+        return scipy.stats.invwishart(K,np.ones(K)).rvs(size=num_customers)
+
+    def _generate_customer_means(self):
+        #total_demand_mean = self.network.demand_mean * self.network.num_customers * self.network.num_commodities
+        return np.random.poisson(self.network.demand_mean/self.network.num_commodities,size=self.network.num_commodities)
+        # return np.floor(
+        #     np.random.dirichlet(self.network.num_commodities / np.arange(1, self.network.num_commodities + 1),
+        #                         size=1) * total_demand_mean).reshape(-1) + self.network.demand_mean # shape (commodities)
+
+    def generate_orders(self, current_t) -> List[Order]:
+        # todo params
+        chosen_customers = np.random.choice(np.arange(self.network.num_customers), size=self.orders_per_day, replace=False)
+        order_means = self.network.customer_means[chosen_customers] # getting the means from the network but the covariances from here for legacy reasons.
+        K = self.network.num_commodities
+
+        ####
+
+        # Generating covariance matrix with inverse Wishart distribution. What does that parameter do?
+        covar = scipy.stats.invwishart(K,np.ones(K)).rvs(size=1)
+
+        orders = []
+        for ci in range(len(chosen_customers)):
+            means = self.customer_means
+            covar = self.customer_covariances[ci,:,:]
+
+            # Sampling X from a multivariate normal with the covariance from Wishart.
+            multivariate_normal_x = np.random.multivariate_normal(np.zeros(means.shape), covar, size=1)
+
+            # Extract the probability density of the sampled values. Is the sqrt(diag(covar)) arbitrary?
+            px = scipy.stats.norm(0, np.sqrt(np.diagonal(covar))).cdf(multivariate_normal_x)
+
+            # Take those quantiles and plug them into a geometric. This is going to skew the data and project it into the range that we want starting at 0.
+            # qgeom(x,prob). X is a vector of quantiles of the probability of failures in a Bernoulli (shape K). Second param is probabilities.  Why pz(1-pz)?? Something related to MLE?
+            pz = 1 / means
+            order_demand = scipy.stats.geom(p=pz * (1 - pz)).ppf(px).flatten()
+
+            _chosen_customer = chosen_customers[ci]
+            customer_node = self.network.customers[_chosen_customer]
+            chosen_initial_point = np.random.choice(np.argwhere(self.network.dcs_per_customer_array[ci, :]).reshape(-1))
+            initial_point_physical_node = self.network.dcs[chosen_initial_point]
+            time = current_t + self.network.planning_horizon - 1  # Orders appear on the edge of PH.
+
+            orders.append(Order(order_demand, initial_point_physical_node, customer_node, time,
+                                name=f"oc_{customer_node.node_id}:{time}"))
+        return orders
+
 
 
 class NaiveInventoryGenerator(InventoryGenerator):
@@ -415,7 +487,7 @@ class NaiveInventoryGenerator(InventoryGenerator):
 
 class DirichletInventoryGenerator(InventoryGenerator):
 
-    def __init__(self,network):
+    def __init__(self,network: PhysicalNetwork):
         num_dcs = network.num_dcs
         num_commodities = network.num_commodities
         self.alpha = np.random.permutation(num_dcs/np.arange(1,num_dcs+1)) # trying to make it skewed.
