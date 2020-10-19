@@ -255,6 +255,8 @@ def main():
 
     )
 
+    wandb_logger.log_hyperparams(dict(config))
+
     environment_parameters = network_flow_env_builder.build_network_flow_env_parameters(
         environment_config,
         hparams['episode_length'],
