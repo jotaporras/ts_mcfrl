@@ -23,7 +23,7 @@ tf.disable_v2_behavior()
 from experiment_utils import network_flow_k_optimizer, report_generator
 from network.PhysicalNetwork import PhysicalNetwork
 from locations.Order import Order
-DEBUG=True
+DEBUG=False
 
 # Abstract classes. BARNUM, you have to implement these
 class OrderGenerator(ABC):

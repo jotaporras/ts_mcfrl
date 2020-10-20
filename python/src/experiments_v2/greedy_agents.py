@@ -1,35 +1,26 @@
 # My own design for this experiment.
+import logging
 import random
-import time
-from typing import Tuple, Optional, Callable
+from typing import Tuple
 
+import numpy as np
+import pytorch_lightning as pl
 import torch
 import wandb
 from envs import network_flow_env_builder
 from pytorch_lightning.loggers import WandbLogger
 from shipping_allocation.envs.network_flow_env import (
-    ActualOrderGenerator,
-    NaiveInventoryGenerator,
     EnvironmentParameters,
-    ShippingFacilityEnvironment, DirichletInventoryGenerator
+    ShippingFacilityEnvironment
 )
-import pandas as pd
-import os
-
-from gym.vector.utils import spaces
 from torch import Tensor
 from torch.optim import Adam, Optimizer
-
-from agents import QNAgent, RandomAgent, Agent, AlwaysZeroAgent, BestFitAgent, RandomValid, DoNothingAgent, AgentHighest
-from experiment_utils import report_generator
-from network.PhysicalNetwork import PhysicalNetwork
-import numpy as np
-import pytorch_lightning as pl
-
-import logging
 from torch.utils.data import DataLoader, IterableDataset
 
-from ptl_agents import MyPrintingCallback, ShippingFacilityEnvironmentStorageCallback, WandbDataUploader
+import agents
+from agents import RandomAgent, Agent
+from experiments_v2.ptl_agents import ShippingFacilityEnvironmentStorageCallback
+from experiments_v2.ptl_callbacks import MyPrintingCallback, WandbDataUploader
 
 
 class ShippingFacilityEpisodesDataset(IterableDataset):
@@ -66,7 +57,7 @@ class GreedyAgentRLModel(pl.LightningModule):
         self.experiment_name = experiment_name
 
         #Running values
-        self.state = None
+        self.state = self.env.reset()
         self.done = False
         self.reward = 0
         self.episode_counter = 0
@@ -76,8 +67,7 @@ class GreedyAgentRLModel(pl.LightningModule):
         self.info = {}
         self.episodes_info = []
 
-        # debug var
-        self.env.reset()
+        # debug var for env reset
         self.was_reset=True
 
     def forward(self, *args, **kwargs):
@@ -205,9 +195,6 @@ class GreedyAgentRLModel(pl.LightningModule):
     def backward(self, trainer, loss: Tensor, optimizer: Optimizer, optimizer_idx: int) -> None:
         return
 
-
-
-
 def main():
     config_dict = {
         "env": {
@@ -229,7 +216,9 @@ def main():
             "batch_size": 30,
             "sync_rate": 2, # Rate to sync the target and learning network.
         },
-        "seed":0
+        "seed":0,
+        "agent": "best_fit"
+        # "agent": "random_valid"
     }
 
     torch.manual_seed(config_dict['seed'])
@@ -243,12 +232,12 @@ def main():
     environment_config = config.env
     hparams = config.hps
 
-    experiment_name = "gr_random_few_warehouses"
+    experiment_name = f"gr_{config.agent}_few_warehouses"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
         tags=[
-            #"debug"
+            # "debug"
             "experiment"
         ],
         log_model=False
@@ -264,7 +253,7 @@ def main():
     )
 
     env = ShippingFacilityEnvironment(environment_parameters)
-    agent = RandomAgent(env)
+    agent = agents.get_greedy_agent(env,config.agent)
 
     model = GreedyAgentRLModel(agent, env, experiment_name=experiment_name)
 
@@ -286,5 +275,6 @@ def main():
 
 
 if __name__ == '__main__':
-    logging.root.level = logging.INFO
+    # logging.root.level = logging.INFO
+    logging.root.level = logging.DEBUG
     main()

@@ -1,3 +1,4 @@
+import logging
 import random
 
 # Environment and agent
@@ -14,7 +15,24 @@ from locations import Orders
 from network.PhysicalNetwork import PhysicalNetwork
 
 tf.disable_v2_behavior()
-DEBUG=True
+DEBUG=False
+
+def get_greedy_agent(env, agent_name:str):
+    if agent_name == "random":
+        return RandomAgent(env)
+    elif agent_name == "always_zero":
+        return AlwaysZeroAgent(env)
+    elif agent_name == "best_fit":
+        return BestFitAgent(env)
+    elif agent_name == "random_valid":
+        return RandomValid(env)
+    elif agent_name == "do_nothing":
+        return DoNothingAgent(env)
+    elif agent_name == "agent_highest":
+        return AgentHighest(env)
+    else:
+        raise NotImplementedError(f"Agent {agent_name} not implemented.")
+
 class Agent:
     def __init__(self, env):
         self.is_discrete = \
@@ -70,7 +88,7 @@ class BestFitAgent(Agent):
         inventory = state['inventory']
         order = state['open'][0]
         customer = order.customer
-        cid = self.network.num_dcs-customer.node_id
+        cid = customer.node_id-self.network.num_dcs
         cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[:,0]
         allowed_dc_invs = inventory[cust_dcs,:]
         demand = order.demand
@@ -113,15 +131,15 @@ class RandomValid(Agent):
         inventory = state['inventory']
         order = state['open'][0]
         customer = order.customer
-        cid = self.network.num_dcs - customer.node_id
+        cid = customer.node_id - self.network.num_dcs
         cust_dcs = np.argwhere(self.network.dcs_per_customer_array[cid, :] > 0)[:,0]
         chosen_dc_id = np.random.choice(cust_dcs)
 
         if DEBUG:
-            print("RandomValid chose: ", chosen_dc_id)
-            print("Inventories: ", inventory)
-            print("Allowed DCs:", cust_dcs)
-            print("Chose allowed DC:", self.network.dcs_per_customer_array[cid, chosen_dc_id] == 1)
+            logging.debug(f"RandomValid chose:  {chosen_dc_id}")
+            logging.debug(f"Inventories:  {inventory}")
+            logging.debug(f"Allowed DCs: {cust_dcs}")
+            logging.debug(f"Chose allowed DC {chosen_dc_id} for customer {cid}: {self.network.dcs_per_customer_array[cid, chosen_dc_id] == 1}")
 
         return chosen_dc_id  # todo test this.
 
@@ -294,6 +312,12 @@ class AgentHighest(Agent):
 
     def train(self, experience):
         pass  # do nothing
+
+
+
+
+
+
 
 
 # if __name__ == "__main__":

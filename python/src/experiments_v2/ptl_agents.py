@@ -1,43 +1,26 @@
-import os
+import argparse
+import logging
 import random
-import shutil
-from collections import deque
+from typing import List
+from typing import Tuple
 
+import gym
+import numpy as np
+import pytorch_lightning as pl
 import torch
+import torch.optim as optim
 import wandb
 from envs import ShippingFacilityEnvironment, network_flow_env_builder
-from envs.network_flow_env import ActualOrderGenerator, DirichletInventoryGenerator
-from pytorch_lightning import Callback
 from pytorch_lightning.loggers import WandbLogger
 from shipping_allocation import EnvironmentParameters
 from torch import nn
-import numpy as np
-import pytorch_lightning as pl
-import argparse
-from collections import OrderedDict, deque
-from typing import Tuple, List
-import torch.optim as optim
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
-import gym
-import torch
-from typing import Tuple
-
-from collections import namedtuple
-import logging
-
-import numpy as np
-import argparse
-from torch.utils.data.dataset import IterableDataset
-
 
 # Named tuple for storing experience steps gathered in training
-from experiment_utils import report_generator
-from network.PhysicalNetwork import PhysicalNetwork
-
-Experience = namedtuple(
-    'Experience', field_names=['state', 'action', 'reward',
-                               'done', 'new_state'])
+from dqn.dqn_common import Experience, RLDataset, ReplayBuffer
+from experiments_v2.ptl_callbacks import WandbDataUploader, MyPrintingCallback, \
+    ShippingFacilityEnvironmentStorageCallback
 
 
 class DQN(nn.Module):
@@ -60,57 +43,6 @@ class DQN(nn.Module):
 
     def forward(self, x):
         return self.net(x.float())
-
-class ReplayBuffer:
-    """
-    Replay Buffer for storing past experiences allowing the agent to learn from them
-
-    Args:
-        capacity: size of the buffer
-    """
-
-    def __init__(self, capacity: int) -> None:
-        self.buffer = deque(maxlen=capacity)
-
-    def __len__(self) -> None:
-        return len(self.buffer)
-
-    def append(self, experience: Experience) -> None:
-        """
-        Add experience to the buffer
-
-        Args:
-            experience: tuple (state, action, reward, done, new_state)
-        """
-        self.buffer.append(experience)
-
-    def sample(self, batch_size: int) -> Tuple:
-        indices = np.random.choice(len(self.buffer), batch_size, replace=False)
-        states, actions, rewards, dones, next_states = zip(*[self.buffer[idx] for idx in indices])
-
-        return (np.array(states), np.array(actions), np.array(rewards, dtype=np.float32),
-                np.array(dones, dtype=np.bool), np.array(next_states))
-
-
-class RLDataset(IterableDataset):
-    """
-    Iterable Dataset containing the ExperienceBuffer
-    which will be updated with new experiences during training
-
-    Args:
-        buffer: replay buffer
-        sample_size: number of experiences to sample at a time
-    """
-
-    def __init__(self, buffer: ReplayBuffer, sample_size: int = 200) -> None:
-        self.buffer = buffer
-        self.sample_size = sample_size
-
-    def __iter__(self) -> Tuple:
-        states, actions, rewards, dones, new_states = self.buffer.sample(self.sample_size)
-        for i in range(len(dones)):
-            yield states[i], actions[i], rewards[i], dones[i], new_states[i]
-
 
 class Agent:
     """
@@ -188,19 +120,6 @@ class Agent:
         return reward, done, info
 
 
-# todo see if it's worth it to abstract this to get non NN agents on the PTL model, or rather create new PTL Modules for other agents.
-# def build_dqn_lightning_module(env, replay_size):
-#     obs_size = env.observation_space.shape[1]
-#     n_actions = env.action_space.n
-#
-#     net = DQN(obs_size, n_actions)  # todo change
-#     target_net = DQN(obs_size, n_actions)
-#
-#     buffer = ReplayBuffer(replay_size)
-#     agent = Agent(env, buffer)
-#
-#     return DQNLightning(hparams,environment,)
-
 class DQNLightning(pl.LightningModule):
     """ Basic DQN Model """
 
@@ -213,7 +132,7 @@ class DQNLightning(pl.LightningModule):
         obs_size = self.env.observation_space.shape[1]
         n_actions = self.env.action_space.n
 
-        self.net = DQN(obs_size, n_actions)# todo change
+        self.net = DQN(obs_size, n_actions)
         self.target_net = DQN(obs_size, n_actions)
 
         self.buffer = ReplayBuffer(self.hparams.replay_size)
@@ -223,7 +142,6 @@ class DQNLightning(pl.LightningModule):
         # Initialize episode information for debugging.
         self.episodes_info = []
         self.episode_counter = 0
-
         self.populate(self.hparams.warm_start_steps)
 
     def populate(self, steps: int = 1000) -> None:
@@ -385,48 +303,6 @@ class DQNLightning(pl.LightningModule):
     def get_device(self, batch) -> str:
         """Retrieve device currently being used by minibatch"""
         return batch[0].device.index if self.on_gpu else 'cpu'
-
-class MyPrintingCallback(Callback):
-    def on_init_start(self, trainer):
-        print('Starting to init trainer!')
-
-    def on_init_end(self, trainer):
-        print('trainer is init now')
-
-    def on_epoch_end(self,trainer,pl_module):
-        print("epoch is done")
-
-    def on_train_end(self, trainer, pl_module):
-        print('do something when training ends')
-
-class WandbDataUploader():
-    def __init__(self, base="data/results"):
-        self.base = base
-
-    def upload(self, experiment_name):
-        '''
-            Copies the base directory of experiment results to the wandb directory for upload
-        :param experiment_name:
-        :return:
-        '''
-        # copy base to wandb.
-        shutil.copytree(os.path.join(self.base,experiment_name), os.path.join(wandb.run.dir,self.base,experiment_name))
-
-class ShippingFacilityEnvironmentStorageCallback(Callback):
-    '''
-        Stores the information objects into CSVs for debugging Environment and actions.
-    '''
-    def __init__(self, experiment_name,base,experiment_uploader:WandbDataUploader):
-        self.experiment_name = experiment_name
-        self.base = base
-        self.experiment_uploader = experiment_uploader
-
-    def on_train_end(self, trainer, pl_module):
-        logging.info("Finished training, writing environment info objects") # todo aqui quede, see if this works and if it is sufficient reporting.
-        report_generator.write_single_df_experiment_reports(pl_module.episodes_info, self.experiment_name,self.base)
-        report_generator.write_generate_physical_network_valid_dcs(pl_module.env.environment_parameters.network, self.experiment_name,self.base)
-
-        self.experiment_uploader.upload(self.experiment_name)
 
 
 def main() -> None:

@@ -40,7 +40,7 @@ def optimize(state):
         transport_matrix += tm
 
     if DEBUG:
-        logging.info("Total optimization cost: ", total_cost)
+        logging.info(f"Total optimization cost: {total_cost}")
         logging.info("Total transportation movements: ")
         logging.info(transport_matrix)
 
@@ -111,8 +111,8 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
                 transport_movements[a.head.location.node_id, k] += mcf.Flow(ai)  #add to destination
             if a.cost >= state['physical_network'].big_m_cost and mcf.Flow(ai)>0:
                 if DEBUG:
-                    logging.info("This is a Big M cost found in the optimization", a, "==>", mcf.Flow(ai))
-                    logging.info(a.tail.location, a.head.location)
+                    logging.info(f"This is a Big M cost found in the optimization {a} ==> {mcf.Flow(ai)}")
+                    logging.info(f"{a.tail.location}, {a.head.location}")
             #if a.commodity==k and a.transportation_arc() and mcf.Flow(ai)>0:
                 #logging.info("***")
                 #logging.info(f"***This a transp arc id {a.arc_id} with flow",a,mcf.Flow(ai)) #toido aqui quede y ver bien flows.
