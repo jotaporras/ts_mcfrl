@@ -21,10 +21,34 @@ from experiments_v2.ptl_agents import (
     WandbDataUploader,
 )
 
-Experience = namedtuple(
-    "Experience", field_names=["state", "action", "reward", "done", "new_state"]
-)
-
+config_dict = {  # default if no hyperparams set.
+    "env": {
+        "num_dcs": 3,
+        "num_customers": 100,
+        "num_commodities": 35,
+        "orders_per_day": int(100 * 0.05),
+        "dcs_per_customer": 2,
+        "demand_mean": 500,
+        "demand_var": 150,
+        "num_steps": 30,  # steps per episode
+        "big_m_factor": 10000,  # how many times the customer cost is the big m.
+    },
+    "hps": {
+        "env": "shipping-v0",  # openai env ID.
+        "replay_size": 150,
+        "warm_start_steps": 150,  # apparently has to be smaller than batch size
+        "max_episodes": 500,  # to do is this num episodes, is it being used?
+        "episode_length": 30,  # todo isn't this an env thing?
+        "batch_size": 30,
+        # "gamma": 0.99,
+        # "lr": 1e-2,
+        "eps_end": 1.0,  # todo consider keeping constant to start.
+        "eps_start": 0.99,  # todo consider keeping constant to start.
+        "eps_last_frame": 1000,  # todo maybe drop
+        "sync_rate": 2,  # Rate to sync the target and learning network.
+    },
+    "seed": 0,
+}
 
 class CustomerDQN(nn.Module):
     """
@@ -84,35 +108,6 @@ class DQNLightningOneHot(DQNLightning):
 
 
 def main() -> None:
-    config_dict = {
-        "env": {
-            "num_dcs": 3,
-            "num_customers": 100,
-            "num_commodities": 35,
-            "orders_per_day": int(100 * 0.05),
-            "dcs_per_customer": 2,
-            "demand_mean": 500,
-            "demand_var": 150,
-            "num_steps": 30,  # steps per episode
-            "big_m_factor": 10000,  # how many times the customer cost is the big m.
-        },
-        "hps": {
-            "env": "shipping-v0",  # openai env ID.
-            "replay_size": 150,
-            "warm_start_steps": 150,  # apparently has to be smaller than batch size
-            "max_episodes": 35,  # to do is this num episodes, is it being used?
-            "episode_length": 30,  # todo isn't this an env thing?
-            "batch_size": 30,
-            "gamma": 0.99,
-            "eps_end": 1.0,  # todo consider keeping constant to start.
-            "eps_start": 0.99,  # todo consider keeping constant to start.
-            "eps_last_frame": 1000,  # todo maybe drop
-            "sync_rate": 2,  # Rate to sync the target and learning network.
-            "lr": 1e-2,
-        },
-        "seed": 0,
-    }
-
     torch.manual_seed(config_dict["seed"])
     np.random.seed(config_dict["seed"])
     random.seed(config_dict["seed"])  # not sure if actually used
@@ -124,7 +119,17 @@ def main() -> None:
     environment_config = config.env
     hparams = config.hps
 
-    experiment_name = "dqn_onehot_few_warehouses_v4"
+    # TODO Hotfix because wandb doesn't support sweeps.
+    if "lr" in config:
+        hparams["lr"] = config.lr
+        hparams["gamma"] = config.gamma
+
+    logging.warning("CONFIG CHECK FOR SWEEP")
+    logging.warning(hparams['lr'])#todo aqui quede make sweep work something with imports.
+    logging.warning(hparams['gamma'])
+
+    # experiment_name = "dqn_onehot_few_warehouses_v4"
+    experiment_name = f"dqn_onehot_few_warehouses_v4_sweep__lr{hparams['lr']}_gamma{hparams['gamma']}"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,

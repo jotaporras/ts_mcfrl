@@ -22,6 +22,67 @@ from dqn.dqn_common import Experience, RLDataset, ReplayBuffer
 from experiments_v2.ptl_callbacks import WandbDataUploader, MyPrintingCallback, \
     ShippingFacilityEnvironmentStorageCallback
 
+config_dict = {
+    "env": {
+        "num_dcs": 3,
+        "num_customers": 100,
+        "num_commodities": 35,
+        "orders_per_day": int(100 * 0.05),
+        "dcs_per_customer": 2,
+        "demand_mean": 500,
+        "demand_var": 150,
+        "num_steps": 30,  # steps per episode
+        "big_m_factor": 10000 # how many times the customer cost is the big m.
+    },
+    "hps": {
+        "env": "shipping-v0", #openai env ID.
+        "replay_size": 150,
+        "warm_start_steps": 150, # apparently has to be smaller than batch size
+        "max_episodes": 500, # to do is this num episodes, is it being used?
+        "episode_length": 30, # todo isn't this an env thing?
+        "batch_size": 30,
+        # "gamma": 0.99,
+        # "lr": 1e-2,
+        "eps_end": 1.0, #todo consider keeping constant to start.
+        "eps_start": 0.99, #todo consider keeping constant to start.
+        "eps_last_frame": 1000, # todo maybe drop
+        "sync_rate": 2, # Rate to sync the target and learning network.
+    },
+    "seed": 0
+}
+
+# Debug dict
+# config_dict = {
+#     "env": {
+#         "num_dcs": 3,
+#         "num_customers": 100,
+#         "num_commodities": 35,
+#         "orders_per_day": 1,
+#         "dcs_per_customer": 2,
+#         "demand_mean": 500,
+#         "demand_var": 150,
+#         "num_steps": 10,  # steps per episode
+#         "big_m_factor": 10000
+#     },
+#     "hps": {
+#         "env": "shipping-v0", #openai env ID.
+#         "replay_size": 30,
+#         "warm_start_steps": 30, # apparently has to be smaller than batch size
+#         "max_episodes": 20, # to do is this num episodes, is it being used?
+#         "episode_length": 30, # todo isn't this an env thing?
+#         "batch_size": 30,
+#         # tuneable need to be at root #TODO CHANGE ALL CONFIGS IF WORKS
+#         # "lr": 1e-2,
+#         # "gamma": 0.99,
+#         "eps_end": 1.0, #todo consider keeping constant to start.
+#         "eps_start": 0.99, #todo consider keeping constant to start.
+#         "eps_last_frame": 1000, # todo maybe drop
+#         "sync_rate": 2, # Rate to sync the target and learning network.
+#
+#     },
+#     "seed":0,
+# }
+run = wandb.init(config=config_dict)
 
 class DQN(nn.Module):
     """
@@ -137,7 +198,14 @@ class DQNLightning(pl.LightningModule):
 
         self.buffer = ReplayBuffer(self.hparams.replay_size)
         self.agent = Agent(self.env, self.buffer)
-        self.episode_reward = 0
+
+
+        # to have an optimization metric
+        self.episode_loss = 0.0
+        self.running_loss = 0.0
+
+        self.episode_reward = 0.0
+        self.running_reward = 0.0
 
         # Initialize episode information for debugging.
         self.episodes_info = []
@@ -220,6 +288,8 @@ class DQNLightning(pl.LightningModule):
         if self.trainer.use_dp or self.trainer.use_ddp2:
             loss = loss.unsqueeze(0)
 
+        self.episode_loss += loss.detach().item()
+
         # Soft update of target network
         if self.global_step % self.hparams.sync_rate == 0:
             self.target_net.load_state_dict(self.net.state_dict())
@@ -232,7 +302,7 @@ class DQNLightning(pl.LightningModule):
         logging.info("Logging current steps metrics")
 
         result.log("loss", loss)
-        result.log("reward", reward)  # todo check if correct and if it fits.
+        result.log("reward", reward)
         result.log("episode_reward", self.episode_reward)
         result.log("episodes", self.episode_counter)
 
@@ -244,10 +314,16 @@ class DQNLightning(pl.LightningModule):
         logging.info("Finished episode, storing information")
         self.episodes_info.append(info)
 
+        self.episode_counter += 1 # First episode is 1. If you're going to index episodes_info, subtract 1
+
+        # Update running metrics
+        self.running_reward += self.episode_reward
+        self.running_loss += self.episode_loss
+
         self._wandb_custom_metrics(info)
 
-        self.episode_counter += 1
-        self.episode_reward = 0
+        self.episode_reward = 0.0
+        self.episode_loss = 0.0
 
     def _wandb_custom_metrics(self, info): #todo duplicate, refactor
         movement_detail_report = info['movement_detail_report']
@@ -268,10 +344,6 @@ class DQNLightning(pl.LightningModule):
         deliveries_per_shipping_point_orders = deliveries.drop_duplicates(["source_name","destination_name","source_time","destination_time"]).groupby("source_name").size().to_dict()
         mean_dcs_per_customer = deliveries.groupby(['destination_name'])['source_name'].nunique().reset_index().source_name.mean()
 
-
-        # Per shipping point-customer?
-
-
         logging.info(f"Episode {self.episode_counter} had {big_m_episode_count} BigMs")
 
         wandb.log({
@@ -281,6 +353,15 @@ class DQNLightning(pl.LightningModule):
             "deliveries_per_shipping_point_units": deliveries_per_shipping_point_units,
             "deliveries_per_shipping_point_orders": deliveries_per_shipping_point_orders,
             "mean_dcs_per_customer": mean_dcs_per_customer,
+            "episode_loss": self.episode_loss,
+            "episode_reward": self.episode_reward,
+            # Running
+            "running_loss": self.running_loss,
+            "running_reward": self.running_reward,
+            # Running mean
+            "mean_loss_per_ep": self.running_loss/(self.episode_counter),
+            "mean_reward_per_ep": self.running_reward/self.episode_counter,
+
         }, commit=False)
 
     def configure_optimizers(self) -> List[Optimizer]:
@@ -306,77 +387,28 @@ class DQNLightning(pl.LightningModule):
 
 
 def main() -> None:
-    config_dict = {
-        "env": {
-            "num_dcs": 3,
-            "num_customers": 100,
-            "num_commodities": 35,
-            "orders_per_day": int(100 * 0.05),
-            "dcs_per_customer": 2,
-            "demand_mean": 500,
-            "demand_var": 150,
-            "num_steps": 30,  # steps per episode
-            "big_m_factor": 10000 # how many times the customer cost is the big m.
-        },
-        "hps": {
-            "env": "shipping-v0", #openai env ID.
-            "replay_size": 150,
-            "warm_start_steps": 150, # apparently has to be smaller than batch size
-            "max_episodes": 500, # to do is this num episodes, is it being used?
-            "episode_length": 30, # todo isn't this an env thing?
-            "batch_size": 30,
-            "gamma": 0.99,
-            "eps_end": 1.0, #todo consider keeping constant to start.
-            "eps_start": 0.99, #todo consider keeping constant to start.
-            "eps_last_frame": 1000, # todo maybe drop
-            "sync_rate": 2, # Rate to sync the target and learning network.
-            "lr": 1e-2,
-        },
-        "seed": 0
-    }
 
-    # Debug dict
-    # config_dict = {
-    #     "env": {
-    #         "num_dcs": 3,
-    #         "num_customers": 100,
-    #         "num_commodities": 35,
-    #         "orders_per_day": 1,
-    #         "dcs_per_customer": 2,
-    #         "demand_mean": 500,
-    #         "demand_var": 150,
-    #         "num_steps": 10,  # steps per episode
-    #         "big_m_factor": 10000
-    #     },
-    #     "hps": {
-    #         "env": "shipping-v0", #openai env ID.
-    #         "replay_size": 30,
-    #         "warm_start_steps": 30, # apparently has to be smaller than batch size
-    #         "max_epochs": 20, # to do is this num episodes, is it being used?
-    #         "episode_length": 30, # todo isn't this an env thing?
-    #         "batch_size": 30,
-    #         "gamma": 0.99,
-    #         "eps_end": 1.0, #todo consider keeping constant to start.
-    #         "eps_start": 0.99, #todo consider keeping constant to start.
-    #         "eps_last_frame": 1000, # todo maybe drop
-    #         "sync_rate": 2, # Rate to sync the target and learning network.
-    #         "lr": 1e-2,
-    #     },
-    #     "seed":0
-    # }
 
     torch.manual_seed(config_dict['seed'])
     np.random.seed(config_dict['seed'])
     random.seed(config_dict['seed']) # not sure if actually used
     np.random.seed(config_dict['seed'])
 
-    run = wandb.init(config=config_dict)
-
     config = wandb.config
     environment_config = config.env
     hparams = config.hps
 
-    experiment_name = "dqn_few_warehouses_v4__demandgen_biased"
+    # TODO Hotfix because wandb doesn't support sweeps.
+    if "lr" in config:
+        hparams["lr"] = config.lr
+        hparams["gamma"] = config.gamma
+
+    print("CONFIG CHECK FOR SWEEP")
+    logging.warning(hparams['lr'])#todo aqui quede make sweep work something with imports.
+    logging.warning(hparams['gamma'])
+
+    # experiment_name = "dqn_few_warehouses_v4__demandgen_biased"
+    experiment_name = f"dqn_few_warehouses_v4_sweep__lr{hparams['lr']}_gamma{hparams['gamma']}"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
