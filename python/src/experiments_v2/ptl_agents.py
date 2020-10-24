@@ -22,66 +22,68 @@ from dqn.dqn_common import Experience, RLDataset, ReplayBuffer
 from experiments_v2.ptl_callbacks import WandbDataUploader, MyPrintingCallback, \
     ShippingFacilityEnvironmentStorageCallback
 
-config_dict = {
-    "env": {
-        "num_dcs": 3,
-        "num_customers": 100,
-        "num_commodities": 35,
-        "orders_per_day": int(100 * 0.05),
-        "dcs_per_customer": 2,
-        "demand_mean": 500,
-        "demand_var": 150,
-        "num_steps": 30,  # steps per episode
-        "big_m_factor": 10000 # how many times the customer cost is the big m.
-    },
-    "hps": {
-        "env": "shipping-v0", #openai env ID.
-        "replay_size": 150,
-        "warm_start_steps": 150, # apparently has to be smaller than batch size
-        "max_episodes": 500, # to do is this num episodes, is it being used?
-        "episode_length": 30, # todo isn't this an env thing?
-        "batch_size": 30,
-        # "gamma": 0.99,
-        # "lr": 1e-2,
-        "eps_end": 1.0, #todo consider keeping constant to start.
-        "eps_start": 0.99, #todo consider keeping constant to start.
-        "eps_last_frame": 1000, # todo maybe drop
-        "sync_rate": 2, # Rate to sync the target and learning network.
-    },
-    "seed": 0
-}
-
-# Debug dict
+# Default big-ish
 # config_dict = {
 #     "env": {
 #         "num_dcs": 3,
 #         "num_customers": 100,
 #         "num_commodities": 35,
-#         "orders_per_day": 1,
+#         "orders_per_day": int(100 * 0.05),
 #         "dcs_per_customer": 2,
 #         "demand_mean": 500,
 #         "demand_var": 150,
-#         "num_steps": 10,  # steps per episode
-#         "big_m_factor": 10000
+#         "num_steps": 30,  # steps per episode
+#         "big_m_factor": 10000 # how many times the customer cost is the big m.
 #     },
 #     "hps": {
 #         "env": "shipping-v0", #openai env ID.
-#         "replay_size": 30,
-#         "warm_start_steps": 30, # apparently has to be smaller than batch size
-#         "max_episodes": 20, # to do is this num episodes, is it being used?
+#         "replay_size": 150,
+#         "warm_start_steps": 150, # apparently has to be smaller than batch size
+#         "max_episodes": 500, # to do is this num episodes, is it being used?
 #         "episode_length": 30, # todo isn't this an env thing?
 #         "batch_size": 30,
-#         # tuneable need to be at root #TODO CHANGE ALL CONFIGS IF WORKS
-#         # "lr": 1e-2,
 #         # "gamma": 0.99,
+#         # "lr": 1e-2,
 #         "eps_end": 1.0, #todo consider keeping constant to start.
 #         "eps_start": 0.99, #todo consider keeping constant to start.
 #         "eps_last_frame": 1000, # todo maybe drop
 #         "sync_rate": 2, # Rate to sync the target and learning network.
-#
 #     },
-#     "seed":0,
+#     "seed": 0
 # }
+
+# Debug dict
+config_dict = {
+    "env": {
+        "num_dcs": 3,
+        "num_customers": 100,
+        "num_commodities": 35,
+        "orders_per_day": 1,
+        "dcs_per_customer": 2,
+        "demand_mean": 500,
+        "demand_var": 150,
+        "num_steps": 10,  # steps per episode
+        "big_m_factor": 10000
+    },
+    "hps": {
+        "env": "shipping-v0", #openai env ID.
+        "replay_size": 30,
+        "warm_start_steps": 30, # apparently has to be smaller than batch size
+        "max_episodes": 20, # to do is this num episodes, is it being used?
+        "episode_length": 30, # todo isn't this an env thing?
+        #"batch_size": 30,
+        "batch_size": 2,
+        # tuneable need to be at root #TODO CHANGE ALL CONFIGS IF WORKS
+        "lr": 1e-2,
+        "gamma": 0.99,
+        "eps_end": 1.0, #todo consider keeping constant to start.
+        "eps_start": 0.99, #todo consider keeping constant to start.
+        "eps_last_frame": 1000, # todo maybe drop
+        "sync_rate": 2, # Rate to sync the target and learning network.
+
+    },
+    "seed":0,
+}
 run = wandb.init(config=config_dict)
 
 class DQN(nn.Module):
@@ -259,6 +261,15 @@ class DQNLightning(pl.LightningModule):
 
         expected_state_action_values = next_state_values * self.hparams.gamma + rewards
 
+        logging.debug("rewards")
+        logging.debug(rewards)
+        logging.debug("state_action_values")
+        logging.debug(state_action_values)
+        logging.debug("next_state_values")
+        logging.debug(next_state_values)
+        logging.debug("actions")
+        logging.debug(actions)
+
         return nn.MSELoss()(state_action_values, expected_state_action_values)
         # return nn.L1Loss()(state_action_values, expected_state_action_values)
 
@@ -407,14 +418,13 @@ def main() -> None:
     logging.warning(hparams['lr'])#todo aqui quede make sweep work something with imports.
     logging.warning(hparams['gamma'])
 
-    # experiment_name = "dqn_few_warehouses_v4__demandgen_biased"
-    experiment_name = f"dqn_few_warehouses_v4_sweep__lr{hparams['lr']}_gamma{hparams['gamma']}"
+    experiment_name = "dqn_few_warehouses_bigmreward"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
         tags=[
-            # "debug"
-            "experiment"
+            "debug"
+            # "experiment"
         ],
         log_model=True
 
@@ -448,5 +458,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    logging.root.level = logging.INFO
+    logging.root.level = logging.DEBUG
     main()

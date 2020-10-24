@@ -98,6 +98,8 @@ class ShippingFacilityEnvironment(gym.Env):
 
         logging.info("Calling init on the ShippingFacilityEnvironment")
 
+
+
     # Taking a step forward after the agent selects an action for the current state.
     def step(self, action):
         # Choose the shipping point for the selected order and fix the order.
@@ -121,10 +123,17 @@ class ShippingFacilityEnvironment(gym.Env):
         self.open_orders = self.open_orders[1:]
         self.current_state['open'] = self.open_orders #TODO cleanup state update
 
-        cost, transports, all_movements = self._run_simulation()
-        reward = (self.last_cost - cost)*-1.0 # todo: will first step be an issue? because no last cost means big positive.
-        #reward = cost * -1 # old reward function.
-        self.last_cost = cost
+        cost, transports, all_movements, big_m_counter = self._run_simulation() #todo if we ever create another environment, we'll need the return of this to be an object.
+
+
+        ##### REWARD FUNCTION #####
+        reward = -1*big_m_counter # Big M Counter based reward 0.3.
+        #reward = (self.last_cost - cost)*-1.0 # diff reward function 0.2
+        #reward = cost * -1 # old reward function. 0.1
+        ##### END REWARD FUNCTION #####
+
+
+        self.last_cost = cost # Necessary for reward 0.2
 
         # Adding approximate transport cost by taking transport matrices where transports are greater than zero. Assumes Customer transport == DC transport cost.
         # Only append movements after open orders have been depleted, meaning once per day.

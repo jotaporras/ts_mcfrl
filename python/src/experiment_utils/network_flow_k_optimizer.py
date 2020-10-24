@@ -34,8 +34,9 @@ def optimize(state):
 
     # Generate ortools.
     total_cost = 0.0
+    total_big_m_count = 0 #TODO: should it be just one? Because if you have it in one commodity you have it in all, so it's kind of the same in different scale.
     for k in range(network.num_commodities): #TODO one indexed commodities?
-        k_cost,tm,all_movements = optimize_commodity(state, extended_network, k, extended_nodes, arcs, current_t,inv_shape)
+        k_cost,tm,all_movements,big_m_counter = optimize_commodity(state, extended_network, k, extended_nodes, arcs, current_t,inv_shape)
         total_cost += k_cost
         transport_matrix += tm
 
@@ -44,7 +45,7 @@ def optimize(state):
         logging.info("Total transportation movements: ")
         logging.info(transport_matrix)
 
-    return total_cost,transport_matrix,all_movements
+    return total_cost, transport_matrix, all_movements, big_m_counter
 
 def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t,inventory_shape,inf_capacity=9000000):
     mcf = pywrapgraph.SimpleMinCostFlow()
@@ -94,6 +95,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
 
     transport_movements = np.zeros(inventory_shape)
     all_movements = []
+    big_m_counter = 0
     if status == mcf.OPTIMAL:
         #logging.info("\nFlows: ")
         for ai in range(mcf.NumArcs()):
@@ -110,6 +112,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
                 transport_movements[a.tail.location.node_id,k] -= mcf.Flow(ai) #subtract from source
                 transport_movements[a.head.location.node_id, k] += mcf.Flow(ai)  #add to destination
             if a.cost >= state['physical_network'].big_m_cost and mcf.Flow(ai)>0:
+                big_m_counter+=1
                 if DEBUG:
                     logging.info(f"This is a Big M cost found in the optimization {a} ==> {mcf.Flow(ai)}")
                     logging.info(f"{a.tail.location}, {a.head.location}")
@@ -128,7 +131,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
         #logging.info("Executing an inventory transport: ")
         #logging.info(transport_movements)
 
-    return mcf.OptimalCost(),transport_movements, all_movements
+    return mcf.OptimalCost(),transport_movements, all_movements,big_m_counter
 
 
 # MinCostFlowBase_BAD_COST_RANGE = 6
