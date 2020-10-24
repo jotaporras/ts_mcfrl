@@ -14,14 +14,12 @@ from shipping_allocation import EnvironmentParameters
 from torch import nn
 
 # Named tuple for storing experience steps gathered in training
-from experiments_v2.ptl_agents import (
-    DQNLightning,
-    MyPrintingCallback,
-    ShippingFacilityEnvironmentStorageCallback,
-    WandbDataUploader,
-)
 
 # Default big-ish
+from experiments_v2.base_ptl_agent_runner import DQNLightning
+from experiments_v2.ptl_callbacks import MyPrintingCallback, ShippingFacilityEnvironmentStorageCallback, \
+    WandbDataUploader
+
 # config_dict = {  # default if no hyperparams set.
 #     "env": {
 #         "num_dcs": 3,
@@ -58,7 +56,7 @@ config_dict = {
         "num_customers": 100,
         "num_commodities": 35,
         "orders_per_day": 1,
-        "dcs_per_customer": 2,
+        "dcs_per_customer": 3,
         "demand_mean": 500,
         "demand_var": 150,
         "num_steps": 10,  # steps per episode
@@ -70,7 +68,8 @@ config_dict = {
         "warm_start_steps": 30, # apparently has to be smaller than batch size
         "max_episodes": 20, # to do is this num episodes, is it being used?
         "episode_length": 30, # todo isn't this an env thing?
-        "batch_size": 30,
+        #"batch_size": 30,
+        "batch_size": 2,
         # tuneable need to be at root #TODO CHANGE ALL CONFIGS IF WORKS
         "lr": 1e-2,
         "gamma": 0.99,
@@ -84,6 +83,7 @@ config_dict = {
 }
 
 run = wandb.init(config=config_dict)
+
 
 class CustomerDQN(nn.Module):
     """
@@ -114,11 +114,11 @@ class CustomerDQN(nn.Module):
         # metadata = np.array([[ship_id, customer_id, current_t, delivery_t]]).transpose()
         self.customer_metadata_neuron = -3
 
-
     def forward(self, x):
         # Convert vector into one hot encoding of the customer.
         with torch.no_grad():
-            xp = metrics.functional.to_onehot(x[:,self.customer_metadata_neuron]-self.num_dcs, num_classes=self.obs_size)
+            xp = metrics.functional.to_onehot(x[:, self.customer_metadata_neuron] - self.num_dcs,
+                                              num_classes=self.obs_size)
 
         return self.net(xp.float())
 
@@ -129,9 +129,9 @@ class DQNLightningOneHot(DQNLightning):
     """
 
     def __init__(
-        self, hparams: argparse.Namespace, environment_parameters: EnvironmentParameters
+            self, hparams: argparse.Namespace, environment_parameters: EnvironmentParameters
     ) -> None:
-        super(DQNLightningOneHot,self).__init__(hparams, environment_parameters)
+        super(DQNLightningOneHot, self).__init__(hparams, environment_parameters)
 
         # Observation space for this network is the number of customers (onehot).
         obs_size = self.env.environment_parameters.network.num_customers
@@ -158,10 +158,10 @@ def main() -> None:
         hparams["gamma"] = config.gamma
 
     logging.warning("CONFIG CHECK FOR SWEEP")
-    logging.warning(hparams['lr'])#todo aqui quede make sweep work something with imports.
+    logging.warning(hparams['lr'])  # todo aqui quede make sweep work something with imports.
     logging.warning(hparams['gamma'])
 
-    experiment_name = "dqn_onehot_few_warehouses_bigmreward_twodcsvalid"
+    experiment_name = "dqn_onehot_few_warehouses_bigmreward_allvalid"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,

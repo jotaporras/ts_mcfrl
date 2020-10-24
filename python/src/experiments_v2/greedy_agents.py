@@ -1,4 +1,3 @@
-# My own design for this experiment.
 import logging
 import random
 from typing import Tuple
