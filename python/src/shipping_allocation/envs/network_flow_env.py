@@ -138,11 +138,11 @@ class ShippingFacilityEnvironment(gym.Env):
         # Adding approximate transport cost by taking transport matrices where transports are greater than zero. Assumes Customer transport == DC transport cost.
         # Only append movements after open orders have been depleted, meaning once per day.
         if len(self.open_orders) == 0:
-            logging.info("Finished the day, adding all movements")
+            #logging.info("Finished the day, adding all movements")
             self.all_movements_history.append(all_movements)
-        else:
-            logging.info("Still are open orders left, no report added")
-            logging.info(f"Number of orders left {len(self.open_orders)}")
+        # else:
+        #     logging.info("Still are open orders left, no report added")
+        #     logging.info(f"Number of orders left {len(self.open_orders)}")
         self.approximate_transport_cost = transports[np.where(transports > 0)].sum() * self.environment_parameters.network.default_customer_transport_cost
         self.total_costs.append(cost)
         self.total_rewards.append(reward)

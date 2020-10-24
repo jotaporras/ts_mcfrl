@@ -20,67 +20,73 @@ from experiments_v2.base_ptl_agent_runner import DQNLightning
 from experiments_v2.ptl_callbacks import MyPrintingCallback, ShippingFacilityEnvironmentStorageCallback, \
     WandbDataUploader
 
-# config_dict = {  # default if no hyperparams set.
+
+
+
+config_dict = {  # default if no hyperparams set for sweep.
+    "env": {
+        "num_dcs": 3,
+        "num_customers": 5,
+        "num_commodities": 3,
+        "orders_per_day": int(100 * 0.05),
+        "dcs_per_customer": 2,
+        "demand_mean": 100,
+        "demand_var": 25,
+        "num_steps": 30,  # steps per episode
+        "big_m_factor": 1000,  # how many times the customer cost is the big m.
+    },
+    "hps": {
+        "env": "shipping-v0",  # openai env ID.
+        "replay_size": 150,
+        "warm_start_steps": 150,  # apparently has to be smaller than batch size
+        "max_episodes": 500,  # to do is this num episodes, is it being used?
+        "episode_length": 30,  # todo isn't this an env thing?
+        "batch_size": 30,
+        "gamma": 0.99,
+        "hidden_size": 12,
+        "lr": 1e-5,
+        "eps_end": 1.0,  # todo consider keeping constant to start.
+        "eps_start": 0.99,  # todo consider keeping constant to start.
+        "eps_last_frame": 1000,  # todo maybe drop
+        "sync_rate": 2,  # Rate to sync the target and learning network.
+    },
+    "seed": 0,
+}
+
+experiment_name = "dqn_onehot_few_warehouses_5cust_bigmreward_ultradeep_dropout_lre^-5_long"
+
+# Debug dict
+# config_dict = {
 #     "env": {
 #         "num_dcs": 3,
 #         "num_customers": 100,
 #         "num_commodities": 35,
-#         "orders_per_day": int(100 * 0.05),
-#         "dcs_per_customer": 2,
+#         "orders_per_day": 1,
+#         "dcs_per_customer": 3,
 #         "demand_mean": 500,
 #         "demand_var": 150,
-#         "num_steps": 30,  # steps per episode
-#         "big_m_factor": 10000,  # how many times the customer cost is the big m.
+#         "num_steps": 10,  # steps per episode
+#         "big_m_factor": 10000
 #     },
 #     "hps": {
-#         "env": "shipping-v0",  # openai env ID.
-#         "replay_size": 150,
-#         "warm_start_steps": 150,  # apparently has to be smaller than batch size
-#         "max_episodes": 500,  # to do is this num episodes, is it being used?
-#         "episode_length": 30,  # todo isn't this an env thing?
-#         "batch_size": 30,
-#         "gamma": 0.99,
+#         "env": "shipping-v0", #openai env ID.
+#         "replay_size": 30,
+#         "warm_start_steps": 30, # apparently has to be smaller than batch size
+#         "max_episodes": 20, # to do is this num episodes, is it being used?
+#         "episode_length": 30, # todo isn't this an env thing?
+#         #"batch_size": 30,
+#         "batch_size": 2,
+#         # tuneable need to be at root #TODO CHANGE ALL CONFIGS IF WORKS
 #         "lr": 1e-2,
-#         "eps_end": 1.0,  # todo consider keeping constant to start.
-#         "eps_start": 0.99,  # todo consider keeping constant to start.
-#         "eps_last_frame": 1000,  # todo maybe drop
-#         "sync_rate": 2,  # Rate to sync the target and learning network.
+#         "gamma": 0.99,
+#         "eps_end": 1.0, #todo consider keeping constant to start.
+#         "eps_start": 0.99, #todo consider keeping constant to start.
+#         "eps_last_frame": 1000, # todo maybe drop
+#         "sync_rate": 2, # Rate to sync the target and learning network.
+#
 #     },
-#     "seed": 0,
+#     "seed":0,
 # }
-
-# Debug dict
-config_dict = {
-    "env": {
-        "num_dcs": 3,
-        "num_customers": 100,
-        "num_commodities": 35,
-        "orders_per_day": 1,
-        "dcs_per_customer": 3,
-        "demand_mean": 500,
-        "demand_var": 150,
-        "num_steps": 10,  # steps per episode
-        "big_m_factor": 10000
-    },
-    "hps": {
-        "env": "shipping-v0", #openai env ID.
-        "replay_size": 30,
-        "warm_start_steps": 30, # apparently has to be smaller than batch size
-        "max_episodes": 20, # to do is this num episodes, is it being used?
-        "episode_length": 30, # todo isn't this an env thing?
-        #"batch_size": 30,
-        "batch_size": 2,
-        # tuneable need to be at root #TODO CHANGE ALL CONFIGS IF WORKS
-        "lr": 1e-2,
-        "gamma": 0.99,
-        "eps_end": 1.0, #todo consider keeping constant to start.
-        "eps_start": 0.99, #todo consider keeping constant to start.
-        "eps_last_frame": 1000, # todo maybe drop
-        "sync_rate": 2, # Rate to sync the target and learning network.
-
-    },
-    "seed":0,
-}
 
 run = wandb.init(config=config_dict)
 
@@ -103,8 +109,29 @@ class CustomerDQN(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(self.obs_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, n_actions),
+            nn.Linear(hidden_size, n_actions)
         )
+
+        # ultra deep
+        # self.net = nn.Sequential(
+        #     nn.Linear(self.obs_size, 128),
+        #     nn.Dropout(p=0.1), # before activation because of
+        #     nn.ReLU(),
+        #     nn.Linear(128, 64),
+        #     nn.Dropout(p=0.1),
+        #     nn.ReLU(),
+        #     nn.Linear(64, 32),
+        #     nn.Dropout(p=0.1),
+        #     nn.ReLU(),
+        #     nn.Linear(32, 16),
+        #     nn.Dropout(p=0.1),
+        #     nn.ReLU(),
+        #     nn.Linear(16, 8),
+        #     nn.Dropout(p=0.1),
+        #     nn.ReLU(),
+        #     nn.Linear(8, n_actions),
+        #     nn.ReLU(),
+        # )
 
         # Definition of the 4 extra metadata neurons (check network_flow_env to verify)
         # ship_id = latest_open_order.shipping_point.node_id
@@ -138,8 +165,9 @@ class DQNLightningOneHot(DQNLightning):
         n_actions = self.env.action_space.n
 
         num_dcs = self.env.environment_parameters.network.num_dcs
-        self.net = CustomerDQN(obs_size, n_actions, num_dcs)
-        self.target_net = CustomerDQN(obs_size, n_actions, num_dcs)
+        self.net = CustomerDQN(obs_size, n_actions, num_dcs, hparams['hidden_size'])
+        self.target_net = CustomerDQN(obs_size, n_actions, num_dcs, hparams['hidden_size'])
+
 
 
 def main() -> None:
@@ -161,15 +189,15 @@ def main() -> None:
     logging.warning(hparams['lr'])  # todo aqui quede make sweep work something with imports.
     logging.warning(hparams['gamma'])
 
-    experiment_name = "dqn_onehot_few_warehouses_bigmreward_allvalid"
+    #experiment_name = "dqn_onehot_few_warehouses_bigmreward_allvalid"
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,
         tags=[
-            "debug"
-            # "experiment"
+            # "debug"
+            "experiment"
         ],
-        log_model=True,
+        log_model=False,#todo sett this to true if you need the checkpoint models at some point
     )
 
     wandb_logger.log_hyperparams(dict(config))
