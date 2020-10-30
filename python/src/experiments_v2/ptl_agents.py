@@ -58,7 +58,7 @@ config_dict = {
     "env": {
         "num_dcs": 3,
         "num_customers": 100,
-        "num_commodities": 35,
+        "num_commodities": 3,
         "orders_per_day": 1,
         "dcs_per_customer": 2,
         "demand_mean": 500,
@@ -85,9 +85,14 @@ config_dict = {
     },
     "seed":0,
 }
-run = wandb.init(config=config_dict)
+#experiment_name = "dqn_few_warehouses_bigmreward"
+experiment_name = "debug_nodebalance"
+
+
 
 def main() -> None:
+    run = wandb.init(config=config_dict)
+
     torch.manual_seed(config_dict['seed'])
     np.random.seed(config_dict['seed'])
     random.seed(config_dict['seed']) # not sure if actually used
@@ -103,10 +108,10 @@ def main() -> None:
         hparams["gamma"] = config.gamma
 
     print("CONFIG CHECK FOR SWEEP")
-    logging.warning(hparams['lr'])#todo aqui quede make sweep work something with imports.
+    logging.warning(hparams['lr']) #todo aqui quede make sweep work something with imports.
     logging.warning(hparams['gamma'])
 
-    experiment_name = "dqn_few_warehouses_bigmreward"
+
     wandb_logger = WandbLogger(
         project="rl_warehouse_assignment",
         name=experiment_name,

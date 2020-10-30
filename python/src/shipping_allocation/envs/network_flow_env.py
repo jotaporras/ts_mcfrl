@@ -125,6 +125,8 @@ class ShippingFacilityEnvironment(gym.Env):
 
         cost, transports, all_movements, big_m_counter = self._run_simulation() #todo if we ever create another environment, we'll need the return of this to be an object.
 
+        # calculating if the current order was a Big M.
+
 
         ##### REWARD FUNCTION #####
         reward = -1*big_m_counter # Big M Counter based reward 0.3.
@@ -338,6 +340,10 @@ class ShippingFacilityEnvironment(gym.Env):
         return self.inventory + new_inventory - consumed_inventory
 
     def _calculate_consumed_inventory(self):
+        '''
+        Consumed inventory is the inventory that will disappear this timelapse when the orders at current_t are delivered
+        :return:
+        '''
         #logging.info("Calculating consumed inventory")
         consumed = np.zeros(self.inventory.shape)
         for order in self.fixed_orders:

@@ -100,7 +100,7 @@ class PhysicalNetwork:
         #Generates the customer nodes
         for i in range(self.num_customers):
             self.customers.append(Node(location_id, 0, 0, 1,kind="C",name="c_" + str(location_id)))
-            self.customers_debug.append(Customer(i,self.dcs_per_customer_array[i,:]))
+            self.customers_debug.append(Customer(i,self.dcs_per_customer_array[i,:]))#this is only for breakpoint debugging, could be used for something else in the future.
             location_id+=1
 
         #Generates the arcs between dcs and dcs

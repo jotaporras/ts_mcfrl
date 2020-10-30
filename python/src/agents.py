@@ -10,6 +10,7 @@ import tensorflow.compat.v1 as tf
 from shipping_allocation.envs.network_flow_env import ActualOrderGenerator, NaiveInventoryGenerator, EnvironmentParameters, \
     ShippingFacilityEnvironment
 
+from experiments_v2.q_learning_agent import ShippingEnvQLearningAgent
 from locations.Order import Order
 from locations import Orders
 from network.PhysicalNetwork import PhysicalNetwork

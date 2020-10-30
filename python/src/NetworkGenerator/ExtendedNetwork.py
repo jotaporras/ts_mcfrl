@@ -1,3 +1,4 @@
+import logging
 from typing import List, Any
 
 from locations.Order import Order
@@ -20,6 +21,7 @@ class ExtendedNetwork:
     open_orders: List[Order]
     network: PhysicalNetwork
     inventory: np.array
+    DUMMY_NAME: str = "DUMMY"
 
     def __init__(self, network, inventory, fixed_orders, open_orders=[]):
         self.network = network
@@ -75,10 +77,23 @@ class ExtendedNetwork:
         #         print("SOME BALANCES NOT 0", np.argwhere(balances != 0))
         #         print(balances)
 
-        # todo add open orders too! (for the MCF agent)
+        # Sum inventory and demand vectors for imbalances
+        balances = np.sum(self.inventory, axis=0) - sum(map(lambda o: o.demand, [o for o in self.fixed_orders if current_t <= o.due_timestep <= planning_horizon_t and o.demand[k]>0]))
+
+        # Add the slack.
+        for k in range(num_commodities):
+            KIND = self.DUMMY_NAME
+            dummy = self.DUMMY_NAME
+            node = TENNode(node_id_inc, -balances[k], 0, k, KIND, current_t, dummy,
+                               name=f"{node_id_inc}__{dummy}^{k}:{current_t}")
+            nodes.append(node)
+            location_time_key = (self.DUMMY_NAME, current_t) # todo maybe replace dummy name with a node id for dummy. And add to physical network.
+            self.location_time_nodemap.setdefault(location_time_key, [None] * num_commodities)[k] = node
+            node_id_inc += 1
+
         return nodes
 
-    def __GenerateArcs(self,current_t,planning_horizon_t):
+    def __GenerateArcs(self,current_t,planning_horizon_t,dummy_cost=1):
         arcs = []
         arcsToCostumers = []
 
@@ -154,16 +169,22 @@ class ExtendedNetwork:
                     valid_connection = network.is_valid_arc(order.shipping_point.node_id,order.customer.node_id)
                     if DEBUG:
                         if not valid_connection:
-                            print("Invalid connection found for this arc, setting BIG M",head,tail,"on order",order,'commodity:',k) # todo check this maybe make clearer.
+                            logging.info("Invalid connection found for this arc, setting BIG M",head,tail,"on order",order,'commodity:',k) # todo check this maybe make clearer.
                     cost = network.default_customer_transport_cost if valid_connection else network.big_m_cost
-                    # if not valid_connection:
-                    #     print("Order ",order," is scheduled from an invalid shipping point, with a cost",cost)
-                    # else:
-                    #     print("Ship pt is valid cost",cost)
                     arc = Arc(arc_id_incr,tail,head, cost, network.default_inf_capacity, k,name=f"{tail.name}=>{head.name}")
                     arcs.append(arc)
                     arc_id_incr += 1
 
-        return arcs
+        # Add arcs to dummy nodes
+        for dc_node in self.network.dcs:
+            for k in range(num_commodities):
+                # Get the DC at current_t
+                tail = self.location_time_nodemap[(dc_node.node_id, current_t)][k]
+                head = self.location_time_nodemap[(self.DUMMY_NAME, current_t)][k]
+                cost = dummy_cost # todo maybe extract to the network.
 
-#TODO check if big M costs are being assigned to invalid arcs!!!!
+                arc = Arc(arc_id_incr, tail, head, cost, network.default_inf_capacity, k,name=f"{tail.name}=>{head.name}")
+                arcs.append(arc)
+                arc_id_incr += 1
+
+        return arcs

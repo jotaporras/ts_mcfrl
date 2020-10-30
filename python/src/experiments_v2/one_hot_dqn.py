@@ -20,9 +20,6 @@ from experiments_v2.base_ptl_agent_runner import DQNLightning
 from experiments_v2.ptl_callbacks import MyPrintingCallback, ShippingFacilityEnvironmentStorageCallback, \
     WandbDataUploader
 
-
-
-
 config_dict = {  # default if no hyperparams set for sweep.
     "env": {
         "num_dcs": 3,
@@ -39,7 +36,7 @@ config_dict = {  # default if no hyperparams set for sweep.
         "env": "shipping-v0",  # openai env ID.
         "replay_size": 150,
         "warm_start_steps": 150,  # apparently has to be smaller than batch size
-        "max_episodes": 500,  # to do is this num episodes, is it being used?
+        "max_episodes": 150,  # to do is this num episodes, is it being used?
         "episode_length": 30,  # todo isn't this an env thing?
         "batch_size": 30,
         "gamma": 0.99,
@@ -53,7 +50,8 @@ config_dict = {  # default if no hyperparams set for sweep.
     "seed": 0,
 }
 
-experiment_name = "dqn_onehot_few_warehouses_5cust_bigmreward_ultradeep_dropout_lre^-5_long"
+#experiment_name = "dqn_onehot_few_warehouses_5cust_bigmreward_ultradeep_dropout_lre^-5_long"
+experiment_name = "dqn_onehot_few_warehouses_5cust_bigmreward_onlyfixed_lre^-6"
 
 # Debug dict
 # config_dict = {
@@ -194,8 +192,8 @@ def main() -> None:
         project="rl_warehouse_assignment",
         name=experiment_name,
         tags=[
-            # "debug"
-            "experiment"
+            "debug"
+            # "experiment"
         ],
         log_model=False,#todo sett this to true if you need the checkpoint models at some point
     )

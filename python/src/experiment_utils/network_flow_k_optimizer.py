@@ -26,7 +26,9 @@ def optimize(state):
     current_t = state['current_t']
     planning_horizon_t = current_t + network.planning_horizon - 1
     # Treat all orders as fixed.
-    extended_network = ExtendedNetwork(network, inventory, fixed_orders=state['open'] + state['fixed'], open_orders=[])
+    #extended_network = ExtendedNetwork(network, inventory, fixed_orders=state['open'] + state['fixed'], open_orders=[])
+    # only fixed
+    extended_network = ExtendedNetwork(network, inventory, fixed_orders=state['fixed'], open_orders=[])
     extended_nodes, arcs = extended_network.ConvertToExtended(current_t, planning_horizon_t)
 
     inv_shape = inventory.shape
@@ -49,6 +51,7 @@ def optimize(state):
 
 def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t,inventory_shape,inf_capacity=9000000):
     mcf = pywrapgraph.SimpleMinCostFlow()
+    slack_node_id = len(extended_nodes)
 
     #logging.info("adding arcs and nodes")
     problem_balance = 0
@@ -63,13 +66,28 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
             #logging.info(f"mcf.AddArcWithCapacityAndUnitCost({a.tail.node_id}, {a.head.node_id}, {inf_capacity}, {a.cost}), arc: {a.name},{a}")
             mcfarcs[(a.tail.node_id, a.head.node_id)] = a
             mcf.AddArcWithCapacityAndUnitCost(a.tail.node_id, a.head.node_id, inf_capacity, a.cost)
-    if problem_balance !=0:
-        logging.info(problem_balance)
-        raise Exception(f"Encountered unbalanced problem on {k}")
-    #if problem_balance == 0:
-        #logging.info("MCF balance for ",k," is ",problem_balance)
-    # else:
-    #     logging.info("WARN!! MCF balance for ", k, " is ", problem_balance)
+
+    # This was the first attempt at handling imbalanced problems, but then I coded it directly into the orders.
+    # TODO delete if the other way works.+
+    # if problem_balance !=0:
+    #     logging.info(problem_balance)
+    #     # balance with a slack node, connect to all arcs.
+    #     # TODO DELETE THIS OF FIX WITH THE NEW DUMMY NODES WORK.
+    #     mcf.SetNodeSupply(slack_node_id,-int(problem_balance))
+    #     if problem_balance > 0:
+    #         #excess inventory, connect as outbound to slack. We only really need to connect the ones that have inventory
+    #         for n in extended_nodes:
+    #             if n.balance>0:
+    #                 mcf.AddArcWithCapacityAndUnitCost(n.node_id, slack_node_id, inf_capacity, 1)#unit cost, see if correct unit
+    #     else:
+    #         #lacking, this should never happen.
+    #         raise Exception(f"Encountered unbalanced problem ({problem_balance} units) lacking inventory on {k}. On current assumptions this should never happen.")
+
+
+
+    if problem_balance != 0:
+        logging.warning(f"WARN!! MCF balance for {k} is {problem_balance}")
+
 
 
     #TODO ai think delete.
@@ -125,7 +143,7 @@ def optimize_commodity(state, extended_network, k, extended_nodes,arcs,current_t
 
     else:
         logging.info(f"Status",status)
-        raise Exception("Something happened")
+        raise Exception("Something happened") #todo aqui quede the small onehot is failing with the new multicommodity. It's yielding infeasible. Could be reversed inv.
 
     #if (transport_movements>0).any():
         #logging.info("Executing an inventory transport: ")
