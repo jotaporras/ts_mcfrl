@@ -76,7 +76,7 @@ Send2Trash==1.5.0
 -e git+https://github.com/jotaporras/ts_mcfrl.git@55b1cac3b9b946f742e2a553bbb040b69ee94faf#egg=shipping_allocation&subdirectory=python/src/shipping_allocation
 six==1.14.0
 tensorboard==1.15.0
-tensorflow==1.15.0
+tensorflow==2.3.1
 tensorflow-estimator==1.15.1
 termcolor==1.1.0
 terminado==0.8.3
